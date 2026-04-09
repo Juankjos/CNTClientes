@@ -3,25 +3,25 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev":   "next dev",
-    "build": "next build",
+    "dev": "next dev",
+    "build": "next build && cp -r .next/static .next/standalone/.next/static && (cp -r public .next/standalone/public 2>/dev/null || true)",
     "start": "next start",
-    "lint":  "next lint"
+    "lint": "next lint",
+    "start:standalone": "HOSTNAME=0.0.0.0 PORT=3000 node --env-file=.env .next/standalone/server.js"
   },
   "dependencies": {
-    "next":         "14.2.29",
-    "react":        "^18",
-    "react-dom":    "^18",
-    "mysql2":       "^3.9.7",
+    "next": "14.2.29",
+    "react": "^18",
+    "react-dom": "^18",
+    "mysql2": "^3.9.7",
     "iron-session": "^8.0.3",
-    "bcryptjs":     "^2.4.3"
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
-    "@types/node":     "^20",
-    "@types/react":    "^18",
-    "@types/react-dom":"^18",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
     "@types/bcryptjs": "^2.4.6",
-    "typescript":      "^5",
-    "tailwindcss":     "^4"
+    "typescript": "^5"
   }
 }
