@@ -6,7 +6,7 @@ import Footer from '@/components/layout/Footer';
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session.user) {
-    redirect('/CNTClientes/login');
+    redirect('/login');
   }
 
   return (

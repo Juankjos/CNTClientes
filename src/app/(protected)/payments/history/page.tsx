@@ -18,7 +18,7 @@ export default function PaymentHistoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/CNTClientes/api/payments?page=${page}`)
+    fetch(`/api/payments?page=${page}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); });
   }, [page]);
@@ -38,14 +38,14 @@ export default function PaymentHistoryPage() {
         <div className="text-center py-24 bg-cnt-surface rounded-xl border border-cnt-border">
           <p className="text-5xl mb-4">🧾</p>
           <p className="text-gray-400 mb-2">Aún no tienes pagos registrados</p>
-          <Link href="/CNTClientes/catalog" className="text-cnt-red text-sm hover:underline">
+          <Link href="/catalog" className="text-cnt-red text-sm hover:underline">
             Explorar catálogo →
           </Link>
         </div>
       ) : (
         <div className="space-y-3">
           {data.pagos.map((pago: any) => (
-            <Link key={pago.id} href={`/CNTClientes/payments/${pago.id}`}
+            <Link key={pago.id} href={`/payments/${pago.id}`}
               className="group flex items-center gap-4 bg-cnt-surface border border-cnt-border hover:border-gray-600 rounded-xl p-4 transition-all">
 
               {/* Imagen / ícono */}

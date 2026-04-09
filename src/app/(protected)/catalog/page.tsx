@@ -59,7 +59,7 @@ export default function CatalogPage() {
     const sp = new URLSearchParams(searchParams.toString());
     Object.entries(params).forEach(([k, v]) => v ? sp.set(k, v) : sp.delete(k));
     sp.delete('page');
-    router.push(`/CNTClientes/catalog?${sp}`);
+    router.push(`/catalog?${sp}`);
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -132,7 +132,7 @@ export default function CatalogPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map(item => (
-            <Link key={item.id} href={`/CNTClientes/catalog/${item.id}`}
+            <Link key={item.id} href={`/catalog/${item.id}`}
               className="group bg-cnt-surface border border-cnt-border rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-200 hover:-translate-y-0.5">
 
               {/* Imagen */}

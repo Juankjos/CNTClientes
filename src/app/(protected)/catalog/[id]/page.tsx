@@ -28,7 +28,7 @@ export default function CatalogDetailPage() {
   async function handlePay() {
     setPaying(true);
     setMsg(null);
-    const res  = await fetch('/CNTClientes/api/payments', {
+    const res  = await fetch('/api/payments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ catalogo_id: Number(id), metodo_pago: method }),
@@ -37,7 +37,7 @@ export default function CatalogDetailPage() {
     setPaying(false);
     if (res.ok) {
       setMsg({ type: 'ok', text: `Pago registrado — Referencia: ${data.referencia}` });
-      setTimeout(() => router.push(`/CNTClientes/payments/${data.pago_id}`), 1500);
+      setTimeout(() => router.push(`/payments/${data.pago_id}`), 1500);
     } else {
       setMsg({ type: 'err', text: data.error ?? 'Error procesando el pago' });
     }
@@ -55,13 +55,13 @@ export default function CatalogDetailPage() {
     <div className="text-center py-24">
       <p className="text-5xl mb-4">🔍</p>
       <p className="text-gray-400 mb-4">Contenido no encontrado</p>
-      <Link href="/CNTClientes/catalog" className="text-cnt-red hover:underline text-sm">← Volver al catálogo</Link>
+      <Link href="/catalog" className="text-cnt-red hover:underline text-sm">← Volver al catálogo</Link>
     </div>
   );
 
   return (
     <div className="max-w-3xl mx-auto">
-      <Link href="/CNTClientes/catalog" className="inline-flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-6 transition-colors">
+      <Link href="/catalog" className="inline-flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-6 transition-colors">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>

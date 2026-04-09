@@ -19,7 +19,7 @@ export default function LoginPage() {
     setError('');
     const fd = new FormData(e.currentTarget);
 
-    const res = await fetch('/CNTClientes/api/auth/login', {
+    const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: fd.get('username'), password: fd.get('password') }),
@@ -34,7 +34,7 @@ export default function LoginPage() {
       setTimeout(() => setShake(false), 600);
       return;
     }
-    router.push('/CNTClientes/catalog');
+    router.push('/catalog');
     router.refresh();
   }
 
@@ -119,7 +119,7 @@ export default function LoginPage() {
                   <label className="text-xs text-gray-400 uppercase tracking-widest">
                     Contraseña
                   </label>
-                  <Link href="/CNTClientes/forgot-password" className="text-xs text-cnt-red hover:text-red-400 transition-colors">
+                  <Link href="/forgot-password" className="text-xs text-cnt-red hover:text-red-400 transition-colors">
                     ¿Olvidaste tu contraseña?
                   </Link>
                 </div>

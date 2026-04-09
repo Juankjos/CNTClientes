@@ -9,7 +9,7 @@ export default function ProfilePage() {
   const [msg, setMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
-    fetch('/CNTClientes/api/users/profile')
+    fetch('/api/users/profile')
       .then(r => r.json())
       .then(d => { setProfile(d); setLoading(false); });
   }, []);
@@ -21,7 +21,7 @@ export default function ProfilePage() {
     const body: Record<string, string> = {};
     fd.forEach((v, k) => { if (String(v).trim()) body[k] = String(v).trim(); });
 
-    const res  = await fetch('/CNTClientes/api/users/profile', {
+    const res  = await fetch('/api/users/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -33,7 +33,7 @@ export default function ProfilePage() {
       : { type: 'err', text: data.error ?? 'Error guardando cambios' }
     );
     if (res.ok) {
-      fetch('/CNTClientes/api/users/profile').then(r => r.json()).then(setProfile);
+      fetch('/api/users/profile').then(r => r.json()).then(setProfile);
     }
   }
 

@@ -23,7 +23,7 @@ export default function PaymentDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/CNTClientes/api/payments/${id}`)
+    fetch(`/api/payments/${id}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { setPago(d); setLoading(false); });
   }, [id]);
@@ -40,7 +40,7 @@ export default function PaymentDetailPage() {
     <div className="text-center py-24">
       <p className="text-5xl mb-4">🔍</p>
       <p className="text-gray-400 mb-4">Pago no encontrado</p>
-      <Link href="/CNTClientes/payments/history" className="text-cnt-red hover:underline text-sm">
+      <Link href="/payments/history" className="text-cnt-red hover:underline text-sm">
         ← Ver historial
       </Link>
     </div>
@@ -48,7 +48,7 @@ export default function PaymentDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <Link href="/CNTClientes/payments/history"
+      <Link href="/payments/history"
         className="inline-flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-6 transition-colors">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -135,7 +135,7 @@ export default function PaymentDetailPage() {
       </div>
 
       <div className="mt-6 text-center">
-        <Link href="/CNTClientes/catalog" className="text-gray-500 hover:text-white text-sm transition-colors">
+        <Link href="/catalog" className="text-gray-500 hover:text-white text-sm transition-colors">
           ← Volver al catálogo
         </Link>
       </div>

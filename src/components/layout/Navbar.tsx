@@ -7,9 +7,9 @@ import type { SessionUser } from '@/types';
 interface NavbarProps { user: SessionUser }
 
 const navLinks = [
-  { href: '/CNTClientes/catalog',         label: 'Catálogo' },
-  { href: '/CNTClientes/payments/history', label: 'Mis Pagos' },
-  { href: '/CNTClientes/profile',          label: 'Mi Perfil' },
+  { href: '/catalog',         label: 'Catálogo' },
+  { href: '/payments/history', label: 'Mis Pagos' },
+  { href: '/profile',          label: 'Mi Perfil' },
 ];
 
 export default function Navbar({ user }: NavbarProps) {
@@ -18,8 +18,8 @@ export default function Navbar({ user }: NavbarProps) {
   const [open, setOpen] = useState(false);
 
   async function logout() {
-    await fetch('/CNTClientes/api/auth/logout', { method: 'POST' });
-    router.push('/CNTClientes/login');
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
     router.refresh();
   }
 
@@ -27,7 +27,7 @@ export default function Navbar({ user }: NavbarProps) {
     <header className="sticky top-0 z-50 bg-cnt-dark/95 backdrop-blur border-b border-cnt-border">
       <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/CNTClientes/catalog" className="flex items-center gap-3 group">
+        <Link href="/catalog" className="flex items-center gap-3 group">
           <div className="w-7 h-7 bg-cnt-red rounded-sm flex items-center justify-center shrink-0">
             <span className="text-white font-black text-[10px]">CNT</span>
           </div>
@@ -53,9 +53,9 @@ export default function Navbar({ user }: NavbarProps) {
           ))}
           {user.rol === 'admin' && (
             <Link
-              href="/CNTClientes/admin"
+              href="/admin"
               className={`px-4 py-2 rounded-md text-sm transition-colors ${
-                pathname.startsWith('/CNTClientes/admin')
+                pathname.startsWith('/admin')
                   ? 'text-cnt-red bg-red-950/30'
                   : 'text-gray-400 hover:text-cnt-red hover:bg-red-950/20'
               }`}
@@ -108,7 +108,7 @@ export default function Navbar({ user }: NavbarProps) {
             </Link>
           ))}
           {user.rol === 'admin' && (
-            <Link href="/CNTClientes/admin" onClick={() => setOpen(false)}
+            <Link href="/admin" onClick={() => setOpen(false)}
               className="block px-6 py-3 text-sm text-cnt-red hover:bg-red-950/20 transition-colors">
               Panel Admin
             </Link>

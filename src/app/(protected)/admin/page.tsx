@@ -98,7 +98,7 @@ export default function AdminPage() {
           <p className="text-cnt-red font-mono text-xs tracking-widest uppercase mb-1">Panel de administración</p>
           <h1 className="font-display text-3xl text-white">Admin CNT</h1>
         </div>
-        <Link href="/CNTClientes/catalog"
+        <Link href="/catalog"
           className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors">
           ← Portal
         </Link>
