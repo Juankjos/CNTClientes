@@ -1,0 +1,27 @@
+{
+  "name": "cnt-clientes",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev":   "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint":  "next lint"
+  },
+  "dependencies": {
+    "next":         "14.2.29",
+    "react":        "^18",
+    "react-dom":    "^18",
+    "mysql2":       "^3.9.7",
+    "iron-session": "^8.0.3",
+    "bcryptjs":     "^2.4.3"
+  },
+  "devDependencies": {
+    "@types/node":     "^20",
+    "@types/react":    "^18",
+    "@types/react-dom":"^18",
+    "@types/bcryptjs": "^2.4.6",
+    "typescript":      "^5",
+    "tailwindcss":     "^4"
+  }
+}
