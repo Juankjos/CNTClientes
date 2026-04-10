@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { apiPath } from '@/lib/api-path';
 
 const CATEGORIAS = ['', 'reportaje', 'noticia', 'entrevista', 'especial'] as const;
 const LABELS: Record<string, string> = {
@@ -47,7 +48,7 @@ export default function CatalogPage() {
     if (busqueda)  params.set('q', busqueda);
     params.set('page', String(page));
 
-    const res  = await fetch(`/CNTClientes/api/catalog?${params}`);
+    const res = await fetch(apiPath(`/api/catalog?${params.toString()}`));
     const data = await res.json();
     setItems(data.items ?? []);
     setPagination(data.pagination ?? { page: 1, pages: 1, total: 0 });

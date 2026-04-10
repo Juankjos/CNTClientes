@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { apiPath } from '@/lib/api-path';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function LoginPage() {
     setError('');
     const fd = new FormData(e.currentTarget);
 
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(apiPath('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: fd.get('username'), password: fd.get('password') }),
@@ -58,7 +59,6 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <p className="text-cnt-red font-mono text-sm tracking-widest uppercase mb-4">Portal de Clientes</p>
             <h1 className="font-display text-5xl font-bold leading-tight mb-6">
               Noticias,<br />Reportajes<br />& Entrevistas
             </h1>
@@ -86,7 +86,6 @@ export default function LoginPage() {
           </div>
 
           <h2 className="font-display text-3xl text-white mb-2">Iniciar sesión</h2>
-          <p className="text-gray-500 mb-10 text-sm">Ingresa tus credenciales para acceder al catálogo</p>
 
           <form onSubmit={handleSubmit} className={shake ? 'animate-shake' : ''}>
             {error && (
@@ -119,7 +118,7 @@ export default function LoginPage() {
                   <label className="text-xs text-gray-400 uppercase tracking-widest">
                     Contraseña
                   </label>
-                  <Link href="/forgot-password" className="text-xs text-cnt-red hover:text-red-400 transition-colors">
+                  <Link href="/forgot-password" className="text-xs text-cnt-blue hover:text-cnt-blue transition-colors">
                     ¿Olvidaste tu contraseña?
                   </Link>
                 </div>
@@ -128,7 +127,7 @@ export default function LoginPage() {
                   type="password"
                   required
                   autoComplete="current-password"
-                  className="w-full bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-blue transition-colors"
                   placeholder="••••••••"
                 />
               </div>
@@ -137,7 +136,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-8 w-full bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm tracking-wide"
+              className="mt-8 w-full bg-cnt-blue hover:bg-blue-700 disabled:bg-blue-900 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm tracking-wide"
             >
               {loading ? (
                 <>
@@ -153,7 +152,7 @@ export default function LoginPage() {
 
           <p className="mt-8 text-center text-xs text-gray-600">
             ¿No tienes cuenta?{' '}
-            <a href="mailto:soporte@tvctepa.com" className="text-cnt-red hover:underline">
+            <a href="mailto:soporte@tvctepa.com" className="text-cnt-blue hover:underline">
               Contacta a soporte
             </a>
           </p>

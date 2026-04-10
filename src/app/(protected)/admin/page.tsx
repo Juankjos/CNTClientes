@@ -37,7 +37,7 @@ export default function AdminPage() {
     setUserLoading(true);
     const params = new URLSearchParams({ page: String(userPage) });
     if (userQ) params.set('q', userQ);
-    const res  = await fetch(`/CNTClientes/api/admin/users?${params}`);
+    const res = await fetch(apiPath(`/api/admin/users?${params.toString()}`));
     const data = await res.json();
     setUsers(data.users ?? []);
     setUserTotal(data.pagination?.total ?? 0);

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { apiPath } from '@/lib/api-path';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
@@ -9,7 +10,7 @@ export default function ProfilePage() {
   const [msg, setMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
-    fetch('/api/users/profile')
+    fetch(apiPath('/api/users/profile'))
       .then(r => r.json())
       .then(d => { setProfile(d); setLoading(false); });
   }, []);
