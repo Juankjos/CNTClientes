@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { apiPath } from '@/lib/api-path';
 
 const NIVEL_STYLE: Record<string, string> = {
   debug:   'bg-gray-800 text-gray-400',
@@ -46,14 +47,14 @@ export default function AdminPage() {
   const fetchLogs = useCallback(async () => {
     const params = new URLSearchParams({ page: String(logPage) });
     if (logNivel) params.set('nivel', logNivel);
-    const res  = await fetch(`/CNTClientes/api/admin/logs?${params}`);
+    const res  = await fetch(apiPath(`/api/admin/logs?${params.toString()}`));
     const data = await res.json();
     setLogs(data.logs ?? []);
     setLogTotal(data.pagination?.total ?? 0);
   }, [logPage, logNivel]);
 
   const fetchPagos = useCallback(async () => {
-    const res  = await fetch(`/CNTClientes/api/payments?page=${pagosPage}`);
+    const res  = await fetch(apiPath(`/api/payments?page=${pagosPage}`));
     const data = await res.json();
     setPagos(data.pagos ?? []);
     setPagosTotal(data.pagination?.total ?? 0);
@@ -64,7 +65,7 @@ export default function AdminPage() {
   useEffect(() => { if (tab === 'pagos') fetchPagos(); }, [tab, fetchPagos]);
 
   async function toggleUser(id: number, activo: number) {
-    await fetch(`/CNTClientes/api/admin/users/${id}`, {
+    await fetch(apiPath(`/api/admin/users/${id}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ activo: activo === 1 ? 0 : 1 }),
@@ -73,7 +74,7 @@ export default function AdminPage() {
   }
 
   async function desbloquearUser(id: number) {
-    await fetch(`/CNTClientes/api/admin/users/${id}`, {
+    await fetch(apiPath(`/api/admin/users/${id}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ desbloquear: true }),
@@ -82,7 +83,7 @@ export default function AdminPage() {
   }
 
   async function confirmPago(id: number, estatus: string) {
-    await fetch(`/CNTClientes/api/payments/${id}`, {
+    await fetch(apiPath(`/api/payments/${id}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estatus }),

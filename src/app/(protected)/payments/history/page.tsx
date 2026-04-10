@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { apiPath } from '@/lib/api-path';
+import Image from 'next/image';
 
 const ESTATUS_STYLE: Record<string, string> = {
   pendiente:    'bg-yellow-900/50 text-yellow-300 border-yellow-800',
@@ -18,7 +20,7 @@ export default function PaymentHistoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/payments?page=${page}`)
+    fetch(apiPath(`/api/payments?page=${page}`))
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); });
   }, [page]);
@@ -51,7 +53,13 @@ export default function PaymentHistoryPage() {
               {/* Imagen / ícono */}
               <div className="w-14 h-14 rounded-lg overflow-hidden bg-cnt-dark shrink-0">
                 {pago.imagen
-                  ? <img src={pago.imagen} alt={pago.titulo} className="w-full h-full object-cover" />
+                  ? <Image
+                      src={pago.imagen}
+                      alt={pago.titulo}
+                      width={56}
+                      height={56}
+                      className="w-full h-full object-cover"
+                    />
                   : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-600">📰</div>
                 }
               </div>

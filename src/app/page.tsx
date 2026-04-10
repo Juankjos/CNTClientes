@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
+import { apiPath } from '@/lib/api-path';
 
 export default function RootPage() {
-  redirect('/login');
+  redirect(apiPath('/login'));
 }

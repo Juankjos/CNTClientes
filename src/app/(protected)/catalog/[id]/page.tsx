@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPath } from '@/lib/api-path';
+import Image from 'next/image';
 
 const BADGES: Record<string, string> = {
   reportaje:  'bg-blue-900 text-blue-300',
@@ -20,7 +22,7 @@ export default function CatalogDetailPage() {
   const [msg, setMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
-    fetch(`/CNTClientes/api/catalog/${id}`)
+    fetch(apiPath(`/api/catalog/${id}`))
       .then(r => r.ok ? r.json() : null)
       .then(d => { setItem(d); setLoading(false); });
   }, [id]);
@@ -28,7 +30,7 @@ export default function CatalogDetailPage() {
   async function handlePay() {
     setPaying(true);
     setMsg(null);
-    const res  = await fetch('/api/payments', {
+    const res  = await fetch(apiPath('/api/payments'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ catalogo_id: Number(id), metodo_pago: method }),
@@ -71,7 +73,13 @@ export default function CatalogDetailPage() {
       {/* Imagen */}
       {item.imagen && (
         <div className="relative h-64 sm:h-80 rounded-xl overflow-hidden mb-6 bg-cnt-surface">
-          <img src={item.imagen} alt={item.titulo} className="w-full h-full object-cover" />
+          <Image
+            src={item.imagen}
+            alt={item.titulo}
+            fill
+            sizes="(max-width: 640px) 100vw, 768px"
+            className="object-cover"
+          />
         </div>
       )}
 

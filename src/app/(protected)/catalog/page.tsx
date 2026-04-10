@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 const CATEGORIAS = ['', 'reportaje', 'noticia', 'entrevista', 'especial'] as const;
 const LABELS: Record<string, string> = {
@@ -138,8 +139,13 @@ export default function CatalogPage() {
               {/* Imagen */}
               <div className="relative h-40 bg-cnt-dark overflow-hidden">
                 {item.imagen ? (
-                  <img src={item.imagen} alt={item.titulo}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <Image
+                    src={item.imagen}
+                    alt={item.titulo}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-4xl text-gray-700">
                     {item.categoria === 'reportaje' ? '📰' : item.categoria === 'noticia' ? '📡' : item.categoria === 'entrevista' ? '🎙️' : '⭐'}

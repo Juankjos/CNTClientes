@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { apiPath } from '@/lib/api-path';
+import Image from 'next/image';
 
 const ESTATUS_STYLE: Record<string, string> = {
   pendiente:   'bg-yellow-900/50 text-yellow-300 border-yellow-800',
@@ -23,7 +25,7 @@ export default function PaymentDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/payments/${id}`)
+    fetch(apiPath(`/api/payments/${id}`))
       .then(r => r.ok ? r.json() : null)
       .then(d => { setPago(d); setLoading(false); });
   }, [id]);
@@ -75,7 +77,13 @@ export default function PaymentDetailPage() {
           <div className="flex gap-4">
             {pago.imagen && (
               <div className="w-20 h-20 rounded-lg overflow-hidden bg-cnt-dark shrink-0">
-                <img src={pago.imagen} alt={pago.titulo} className="w-full h-full object-cover" />
+                <Image
+                  src={pago.imagen}
+                  alt={pago.titulo}
+                  width={80}
+                  height={80}
+                  className="w-full h-full object-cover"
+                />
               </div>
             )}
             <div>
