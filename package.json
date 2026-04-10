@@ -10,7 +10,7 @@
     "start:standalone": "HOSTNAME=0.0.0.0 PORT=3000 node --env-file=.env .next/standalone/server.js"
   },
   "dependencies": {
-    "next": "14.2.29",
+    "next": "15.0.1",
     "react": "^18",
     "react-dom": "^18",
     "mysql2": "^3.9.7",
