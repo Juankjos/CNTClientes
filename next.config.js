@@ -19,8 +19,15 @@ const nextConfig = {
 
   // Imágenes externas permitidas (agregar dominios si es necesario)
   images: {
+    // Si solo usarás imágenes locales servidas por tu app, puedes dejar esto vacío
+    // o configurar dominios concretos si además aceptas URLs externas reales.
     remotePatterns: [
-      { protocol: 'https', hostname: 'nube.tvctepa.com' },
+      {
+        protocol: 'http',
+        hostname: process.env.DB_HOST,
+        port: process.env.DB_PORT,
+        pathname: '/**',
+      },
     ],
   },
 };

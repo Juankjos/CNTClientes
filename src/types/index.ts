@@ -1,3 +1,4 @@
+//src/types/index.ts
 export interface SessionUser {
   id: number;
   username: string;
@@ -55,6 +56,29 @@ export interface LogEntry {
   created_at: string;
   username?: string;
 }
+
+// Agrega esto al archivo existente
+
+export type CatalogoItem = {
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
+  precio: number;
+  imagen: string | null;
+  archivo: string | null;
+  activo: boolean;
+  fecha_publicacion: string;
+};
+
+export type CatalogoFormData = {
+  titulo: string;
+  descripcion: string;
+  categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
+  precio: number;
+  imagen: string;       // URL ingresada manualmente
+  activo: boolean;
+};
 
 // Augment iron-session
 declare module 'iron-session' {

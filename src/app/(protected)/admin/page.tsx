@@ -1,3 +1,4 @@
+//src/app/(protected)/admin/page.tsx
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
@@ -102,6 +103,9 @@ export default function AdminPage() {
         <Link href="/catalog"
           className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors">
           ← Portal
+        </Link>
+        <Link href="/admin/catalog">
+          Gestionar Catálogo
         </Link>
       </div>
 

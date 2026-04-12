@@ -1,3 +1,4 @@
+//src/app/(protected)/catalog/page.tsx
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
@@ -138,18 +139,19 @@ export default function CatalogPage() {
               className="group bg-cnt-surface border border-cnt-border rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-200 hover:-translate-y-0.5">
 
               {/* Imagen */}
-              <div className="relative h-40 bg-cnt-dark overflow-hidden">
+              <div className="relative w-full h-48 bg-gray-100 rounded-t-lg overflow-hidden">
                 {item.imagen ? (
                   <Image
                     src={item.imagen}
                     alt={item.titulo}
                     fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover"
+                    unoptimized // Quita esto si controlas el dominio de las imágenes
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-4xl text-gray-700">
-                    {item.categoria === 'reportaje' ? '📰' : item.categoria === 'noticia' ? '📡' : item.categoria === 'entrevista' ? '🎙️' : '⭐'}
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <span>Sin imagen</span>
                   </div>
                 )}
                 <div className="absolute top-2 left-2">
