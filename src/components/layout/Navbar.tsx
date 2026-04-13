@@ -28,7 +28,7 @@ export default function Navbar({ user }: NavbarProps) {
     <header className="sticky top-0 z-50 bg-cnt-dark/95 backdrop-blur border-b border-cnt-border">
       <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href={apiPath('/api/catalog')} className="flex items-center gap-3 group">
+        <Link href="/catalog" className="flex items-center gap-3 group">
           <div className="w-7 h-7 bg-cnt-red rounded-sm flex items-center justify-center shrink-0">
             <span className="text-white font-black text-[10px]">CNT</span>
           </div>
