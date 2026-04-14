@@ -55,10 +55,10 @@ export default function Navbar({ user }: NavbarProps) {
           {user.rol === 'admin' && (
             <Link
               href="/admin"
-              className={`px-4 py-2 rounded-md text-sm transition-colors ${
+              className={`px-4 py-2 rounded-md text-sm transition-colors duration-200 ${
                 pathname.startsWith('/admin')
-                  ? 'text-cnt-red bg-red-950/30'
-                  : 'text-gray-400 hover:text-cnt-red hover:bg-red-950/20'
+                  ? 'text-white bg-red-950/40'
+                  : 'text-gray-400 hover:text-red-300 hover:bg-red-950/20'
               }`}
             >
               Admin

@@ -137,14 +137,14 @@ export default function CatalogDetailPage() {
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Método de pago</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {['transferencia', 'efectivo', 'tarjeta'].map(m => (
+                  {['transferencia','tarjeta'].map(m => (
                     <button key={m} onClick={() => setMethod(m)}
                       className={`py-2.5 px-3 rounded-lg border text-xs capitalize transition-colors ${
                         method === m
                           ? 'border-cnt-red bg-red-950/30 text-white'
                           : 'border-cnt-border text-gray-500 hover:text-white hover:border-gray-500'
                       }`}>
-                      {m === 'transferencia' ? '🏦 Transferencia' : m === 'efectivo' ? '💵 Efectivo' : '💳 Tarjeta'}
+                      {m === 'transferencia' ? '🏦 Transferencia' : '💳 Tarjeta'}
                     </button>
                   ))}
                 </div>

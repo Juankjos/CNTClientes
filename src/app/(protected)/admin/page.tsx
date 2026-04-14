@@ -97,15 +97,16 @@ export default function AdminPage() {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="text-cnt-red font-mono text-xs tracking-widest uppercase mb-1">Panel de administración</p>
-          <h1 className="font-display text-3xl text-white">Admin CNT</h1>
+          <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">Panel de administración</p>
+          <h1 className="font-display text-3xl text-white">Administrador CNT</h1>
         </div>
+        <Link href="/admin/catalog"
+          className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors">
+          Gestionar Catálogo
+        </Link>
         <Link href="/catalog"
           className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors">
           ← Portal
-        </Link>
-        <Link href="/admin/catalog">
-          Gestionar Catálogo
         </Link>
       </div>
 

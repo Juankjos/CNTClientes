@@ -175,7 +175,7 @@ export default function CatalogPage() {
                   <p className="text-gray-500 text-xs line-clamp-2 mb-3">{item.descripcion}</p>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-cnt-red font-semibold text-sm">
+                  <span className="text-white font-semibold text-sm">
                     {item.precio === 0 ? 'Gratuito' : `$${Number(item.precio).toFixed(2)} MXN`}
                   </span>
                   <span className="text-gray-600 text-xs">

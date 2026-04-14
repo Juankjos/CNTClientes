@@ -222,7 +222,7 @@ export default function AdminCatalogPage() {
                   onChange={e =>
                     setForm(f => ({ ...f, categoria: e.target.value as typeof form.categoria }))
                   }
-                  className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                  className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors cursor-pointer"
                 >
                   {CATEGORIAS.map(categoria => (
                     <option key={categoria} value={categoria}>
@@ -256,11 +256,11 @@ export default function AdminCatalogPage() {
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 onChange={e => handleImageFile(e.target.files?.[0] ?? null)}
-                className="w-full bg-cnt-dark border border-cnt-border text-gray-400 file:mr-4 file:border-0 file:bg-cnt-red file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-red-700 rounded-lg px-3 py-2 text-sm"
+                className="w-full bg-cnt-dark border border-cnt-border text-gray-400 file:mr-4 file:border-0 file:bg-cnt-red file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-red-700 rounded-lg px-3 py-2 text-sm cursor-pointer file:cursor-pointer"
               />
             </div>
 
-            <div>
+            {/* <div>
               <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
                 O usar URL externa
               </label>
@@ -270,7 +270,7 @@ export default function AdminCatalogPage() {
                 onChange={e => handleImageUrl(e.target.value)}
                 className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors"
               />
-            </div>
+            </div> */}
 
             {preview && (
               <div>
@@ -287,18 +287,21 @@ export default function AdminCatalogPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-3 rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3">
+            <label
+              htmlFor="activo"
+              className="flex items-center gap-3 rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3 cursor-pointer"
+            >
               <input
                 type="checkbox"
                 id="activo"
                 checked={form.activo}
                 onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))}
-                className="h-4 w-4 accent-red-600"
+                className="h-4 w-4 accent-red-600 cursor-pointer"
               />
-              <label htmlFor="activo" className="text-sm text-gray-300">
+              <span className="text-sm text-gray-300">
                 Publicado / Activo
-              </label>
-            </div>
+              </span>
+            </label>
 
             {msg && (
               <div
@@ -316,15 +319,14 @@ export default function AdminCatalogPage() {
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
+                className="bg-cnt-red hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed cursor-pointer text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
               >
                 {loading ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
               </button>
-
               {editId && (
                 <button
                   onClick={resetForm}
-                  className="bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white px-6 py-2.5 rounded-lg text-sm transition-colors"
+                  className="bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white cursor-pointer px-6 py-2.5 rounded-lg text-sm transition-colors"
                 >
                   Cancelar
                 </button>
@@ -388,13 +390,13 @@ export default function AdminCatalogPage() {
                   <div className="flex flex-col gap-2 shrink-0">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="text-sm text-cnt-red hover:underline text-left"
+                      className="text-sm text-white hover:underline text-left cursor-pointer"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="text-sm text-red-300 hover:underline text-left"
+                      className="text-sm text-red-300 hover:underline text-left cursor-pointer"
                     >
                       Eliminar
                     </button>
