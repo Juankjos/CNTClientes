@@ -1,3 +1,4 @@
+// src/lib/auth.ts
 import bcrypt from 'bcryptjs';
 import { pool } from './db';
 import { logAction } from './logger';

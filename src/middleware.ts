@@ -1,3 +1,4 @@
+// src/middleware.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { unsealData } from 'iron-session';
 import type { SessionData } from '@/lib/session';
