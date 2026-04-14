@@ -1,33 +1,72 @@
 // src/app/(auth)/login/page.tsx
 'use client';
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { Suspense, useState, useRef, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { apiPath } from '@/lib/api-path';
 
-export default function LoginPage() {
+const verificationMessages: Record<
+  string,
+  { type: 'success' | 'error'; text: string }
+> = {
+  success: {
+    type: 'success',
+    text: 'Tu correo fue verificado correctamente. Ya puedes iniciar sesión.',
+  },
+  already_verified: {
+    type: 'success',
+    text: 'Tu correo ya estaba verificado. Ya puedes iniciar sesión.',
+  },
+  expired: {
+    type: 'error',
+    text: 'El enlace de verificación expiró. Solicita uno nuevo.',
+  },
+  invalid: {
+    type: 'error',
+    text: 'El enlace de verificación no es válido.',
+  },
+  error: {
+    type: 'error',
+    text: 'Ocurrió un error al verificar tu correo. Inténtalo más tarde.',
+  },
+};
+
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-  const [shake, setShake]     = useState(false);
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
   const userRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { userRef.current?.focus(); }, []);
+  useEffect(() => {
+    userRef.current?.focus();
+  }, []);
+
+  const verifiedStatus = searchParams.get('verified');
+  const verifiedMessage = verifiedStatus
+    ? verificationMessages[verifiedStatus]
+    : null;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError('');
+
     const fd = new FormData(e.currentTarget);
 
     const res = await fetch(apiPath('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: fd.get('username'), password: fd.get('password') }),
+      body: JSON.stringify({
+        username: fd.get('username'),
+        password: fd.get('password'),
+      }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
 
     if (!res.ok) {
@@ -36,6 +75,7 @@ export default function LoginPage() {
       setTimeout(() => setShake(false), 600);
       return;
     }
+
     router.push('/catalog');
     router.refresh();
   }
@@ -88,12 +128,21 @@ export default function LoginPage() {
 
           <h2 className="font-display text-3xl text-white mb-2">Iniciar sesión</h2>
 
+          {verifiedMessage && (
+            <div
+              className={`mb-6 px-4 py-3 rounded-lg text-sm border ${
+                verifiedMessage.type === 'success'
+                  ? 'bg-green-950 border-green-800 text-green-300'
+                  : 'bg-red-950 border-cnt-red text-red-300'
+              }`}
+            >
+              {verifiedMessage.text}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className={shake ? 'animate-shake' : ''}>
             {error && (
-              <div className="mb-6 px-4 py-3 bg-red-950 border border-cnt-red rounded-lg text-red-300 text-sm flex items-center gap-2">
-                <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                </svg>
+              <div className="mb-6 px-4 py-3 bg-red-950 border border-cnt-red rounded-lg text-red-300 text-sm">
                 {error}
               </div>
             )}
@@ -109,8 +158,8 @@ export default function LoginPage() {
                   type="text"
                   required
                   autoComplete="username"
-                  className="w-full bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red transition-colors"
-                  placeholder="tu_usuario"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                  placeholder="Usuario"
                 />
               </div>
 
@@ -119,46 +168,65 @@ export default function LoginPage() {
                   <label className="text-xs text-gray-400 uppercase tracking-widest">
                     Contraseña
                   </label>
-                  <Link href="/forgot-password" className="text-xs text-cnt-blue hover:text-cnt-blue transition-colors">
+                  {/* <Link
+                    href="/forgot-password"
+                    className="text-xs text-cnt-blue hover:text-cnt-blue transition-colors"
+                  >
                     ¿Olvidaste tu contraseña?
-                  </Link>
+                  </Link> */}
                 </div>
                 <input
                   name="password"
                   type="password"
                   required
                   autoComplete="current-password"
-                  className="w-full bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-blue transition-colors"
-                  placeholder="••••••••"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-blue transition-colors"
+                  placeholder="Contraseña"
                 />
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-cnt-blue hover:text-cnt-blue transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-8 w-full bg-cnt-blue hover:bg-blue-700 disabled:bg-blue-900 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-sm tracking-wide"
+              className="cursor-pointer mt-8 w-full bg-cnt-blue hover:bg-blue-700 disabled:bg-blue-900 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
             >
-              {loading ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                  Verificando...
-                </>
-              ) : 'Ingresar al portal'}
+              {loading ? 'Verificando...' : 'Ingresar'}
             </button>
-          </form>
 
-          <p className="mt-8 text-center text-xs text-gray-600">
-            ¿No tienes cuenta?{' '}
-            <a href="mailto:soporte@tvctepa.com" className="text-cnt-blue hover:underline">
-              Contacta a soporte
-            </a>
-          </p>
+            <Link
+              href="https://nube.tvctepa.com/CNTClientes/register"
+              className="mt-4 block w-full text-center border border-cnt-border hover:border-cnt-red text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
+            >
+              ¿No tienes cuenta? Regístrate
+            </Link>
+          </form>
         </div>
       </div>
     </div>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div className="min-h-screen bg-cnt-dark flex">
+      <div className="flex-1 flex items-center justify-center p-8 bg-cnt-dark">
+        <div className="w-full max-w-md" />
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

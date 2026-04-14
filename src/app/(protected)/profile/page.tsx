@@ -81,7 +81,7 @@ export default function ProfilePage() {
       <div className="flex gap-1 mb-6 bg-cnt-surface border border-cnt-border rounded-lg p-1">
         {(['info', 'password'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); setMsg(null); }}
-            className={`flex-1 py-2 rounded-md text-sm transition-colors ${
+            className={`cursor-pointer flex-1 py-2 rounded-md text-sm transition-colors ${
               tab === t ? 'bg-cnt-dark text-white' : 'text-gray-500 hover:text-white'
             }`}>
             {t === 'info' ? 'Información personal' : 'Cambiar contraseña'}
@@ -139,7 +139,7 @@ export default function ProfilePage() {
         )}
 
         <button type="submit" disabled={saving}
-          className="mt-6 w-full bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all">
+          className="cursor-pointer mt-6 w-full bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all">
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </form>

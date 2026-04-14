@@ -74,7 +74,7 @@ export default function CatalogPage() {
     <div>
       {/* Header */}
       <div className="mb-8">
-        <p className="text-cnt-red font-mono text-xs tracking-widest uppercase mb-1">Portal CNT</p>
+        <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">Portal CNT</p>
         <h1 className="font-display text-3xl text-white mb-1">Catálogo de Contenido</h1>
         <p className="text-gray-500 text-sm">{pagination.total} publicaciones disponibles</p>
       </div>
@@ -89,7 +89,7 @@ export default function CatalogPage() {
             placeholder="Buscar por título o descripción..."
             className="flex-1 bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors"
           />
-          <button type="submit" className="px-4 py-2.5 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors">
+          <button type="submit" className="cursor-pointer px-4 py-2.5 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
@@ -102,7 +102,7 @@ export default function CatalogPage() {
             <button
               key={cat}
               onClick={() => navigate({ cat })}
-              className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-colors ${
+              className={`cursor-pointer px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-colors ${
                 categoria === cat
                   ? 'bg-cnt-red text-white'
                   : 'bg-cnt-surface text-gray-400 hover:text-white border border-cnt-border'
@@ -127,7 +127,7 @@ export default function CatalogPage() {
           <p className="text-gray-400">No se encontraron publicaciones</p>
           {(busqueda || categoria) && (
             <button onClick={() => { setBusqueda(''); navigate({ cat: '', q: '' }); }}
-              className="mt-4 text-cnt-red text-sm hover:underline">
+              className="cursor-pointer mt-4 text-white text-sm hover:underline">
               Limpiar filtros
             </button>
           )}

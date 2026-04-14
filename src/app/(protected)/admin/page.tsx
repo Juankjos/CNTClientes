@@ -114,7 +114,7 @@ export default function AdminPage() {
       <div className="flex gap-1 mb-6 bg-cnt-surface border border-cnt-border rounded-lg p-1 w-fit">
         {(['users', 'pagos', 'logs'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-md text-sm transition-colors capitalize ${
+            className={`cursor-pointer px-5 py-2 rounded-md text-sm transition-colors capitalize ${
               tab === t ? 'bg-cnt-dark text-white' : 'text-gray-500 hover:text-white'
             }`}>
             {t === 'users' ? 'Usuarios' : t === 'pagos' ? 'Pagos' : 'Logs'}
@@ -132,7 +132,7 @@ export default function AdminPage() {
               onKeyDown={e => e.key === 'Enter' && fetchUsers()}
             />
             <button onClick={fetchUsers}
-              className="px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors">
+              className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors">
               Buscar
             </button>
             <span className="px-3 py-2 text-gray-500 text-sm">{userTotal} usuarios</span>
@@ -277,7 +277,7 @@ export default function AdminPage() {
           <div className="flex gap-2 mb-5">
             {['', 'debug', 'info', 'warning', 'error'].map(n => (
               <button key={n} onClick={() => { setLogNivel(n); setLogPage(1); }}
-                className={`px-3 py-1.5 rounded-lg text-xs transition-colors border ${
+                className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs transition-colors border ${
                   logNivel === n ? 'border-cnt-red bg-red-950/30 text-white' : 'border-cnt-border text-gray-500 hover:text-white'
                 }`}>
                 {n === '' ? 'Todos' : n}

@@ -6,7 +6,15 @@ import type { SessionData } from '@/lib/session';
 const BASE_PATH = '/CNTClientes';
 const COOKIE_NAME = 'cnt_session';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/verify-email',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/verify-email',
+];
+
 const ADMIN_PATHS = ['/admin', '/api/admin'];
 
 const rawSessionSecret = process.env.SESSION_SECRET;
@@ -40,8 +48,24 @@ function matchesPath(pathname: string, prefixes: string[]): boolean {
   );
 }
 
+function getPublicOrigin(req: NextRequest) {
+  const appUrl = process.env.APP_URL?.trim().replace(/\/$/, '');
+  if (appUrl) return appUrl;
+
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+  const host =
+    req.headers.get('x-forwarded-host') ??
+    req.headers.get('host');
+
+  if (!host) {
+    throw new Error('No se pudo determinar el host público');
+  }
+
+  return `${proto}://${host}`;
+}
+
 function buildUrl(req: NextRequest, path: string): URL {
-  return new URL(`${BASE_PATH}${path}`, req.url);
+  return new URL(`${BASE_PATH}${path}`, getPublicOrigin(req));
 }
 
 export async function middleware(req: NextRequest) {

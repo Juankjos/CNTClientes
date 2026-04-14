@@ -133,7 +133,7 @@ export default function CatalogDetailPage() {
         ) : (
           <div className="space-y-4">
             {/* Método de pago */}
-            {Number(item.precio) > 0 && (
+            {/* {Number(item.precio) > 0 && (
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Método de pago</p>
                 <div className="grid grid-cols-3 gap-2">
@@ -149,7 +149,7 @@ export default function CatalogDetailPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )} */}
 
             {msg && (
               <div className={`px-4 py-3 rounded-lg text-sm ${
@@ -160,9 +160,9 @@ export default function CatalogDetailPage() {
             )}
 
             <button onClick={handlePay} disabled={paying}
-              className="w-full bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
+              className="cursor-pointer w-full bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
               {paying ? (
-                <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <><svg className="bg-cnt-red hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed cursor-pointer text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>Procesando...</>

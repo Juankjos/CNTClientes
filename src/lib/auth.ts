@@ -21,8 +21,10 @@ export async function login(
   userAgent: string
 ): Promise<LoginResult> {
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT id, username, email, password, rol, activo, intentos_login, bloqueado_hasta
-     FROM usuarios_clientes WHERE username = ? OR email = ? LIMIT 1`,
+  `SELECT id, username, email, password, rol, activo, intentos_login, bloqueado_hasta, email_verificado_at
+    FROM usuarios_clientes
+    WHERE username = ? OR email = ?
+    LIMIT 1`,
     [username, username]
   );
 
@@ -41,6 +43,10 @@ export async function login(
   if (user.bloqueado_hasta && new Date(user.bloqueado_hasta) > new Date()) {
     const diff = Math.ceil((new Date(user.bloqueado_hasta).getTime() - Date.now()) / 60000);
     return { success: false, error: `Cuenta bloqueada. Intenta en ${diff} min.` };
+  }
+
+  if (!user.email_verificado_at) {
+    return { success: false, error: 'Debes verificar tu correo antes de ingresar.' };
   }
 
   const ok = await bcrypt.compare(password, user.password);
@@ -65,8 +71,8 @@ export async function login(
   // Login exitoso
   await pool.execute(
     `UPDATE usuarios_clientes
-     SET intentos_login = 0, bloqueado_hasta = NULL, ultimo_login = NOW(), ultima_ip = ?
-     WHERE id = ?`,
+      SET intentos_login = 0, bloqueado_hasta = NULL, ultimo_login = NOW(), ultima_ip = ?
+      WHERE id = ?`,
     [ip, user.id]
   );
 

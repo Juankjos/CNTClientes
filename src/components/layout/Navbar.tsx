@@ -78,7 +78,7 @@ export default function Navbar({ user }: NavbarProps) {
           </span>
           <button
             onClick={logout}
-            className="px-3 py-1.5 text-xs text-gray-400 hover:text-white border border-cnt-border hover:border-gray-500 rounded-md transition-all"
+            className="cursor-pointer px-3 py-1.5 text-xs text-gray-400 hover:text-white border border-cnt-border hover:border-gray-500 rounded-md transition-all"
           >
             Salir
           </button>
