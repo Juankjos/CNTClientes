@@ -1,3 +1,4 @@
+// src/app/api/payments/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { pool } from '@/lib/db';
@@ -20,10 +21,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT p.*, c.titulo, c.descripcion, c.categoria, c.imagen, c.archivo,
             cl.nombre, cl.apellidos, cl.email
-     FROM pagos_clientes p
-     INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
-     INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
-     WHERE p.id = ? ${session.user.rol !== 'admin' ? 'AND cl.usuario_id = ?' : ''}`,
+      FROM pagos_clientes p
+      INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
+      INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
+      WHERE p.id = ? ${session.user.rol !== 'admin' ? 'AND cl.usuario_id = ?' : ''}`,
     session.user.rol !== 'admin' ? [id, session.user.id] : [id]
   );
 

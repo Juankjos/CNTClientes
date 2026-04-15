@@ -29,20 +29,44 @@ export default function CatalogDetailPage() {
   }, [id]);
 
   async function handlePay() {
-    setPaying(true);
-    setMsg(null);
-    const res  = await fetch(apiPath('/api/payments'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ catalogo_id: Number(id), metodo_pago: method }),
-    });
-    const data = await res.json();
-    setPaying(false);
-    if (res.ok) {
-      setMsg({ type: 'ok', text: `Pago registrado — Referencia: ${data.referencia}` });
-      setTimeout(() => router.push(`/payments/${data.pago_id}`), 1500);
-    } else {
-      setMsg({ type: 'err', text: data.error ?? 'Error procesando el pago' });
+    try {
+      setPaying(true);
+      setMsg(null);
+
+      const res = await fetch(apiPath('/api/payments'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          catalogo_id: Number(id),
+          metodo_pago: method,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMsg({
+          type: 'err',
+          text: data?.error ?? `Error ${res.status} procesando el pago`,
+        });
+        return;
+      }
+
+      setMsg({
+        type: 'ok',
+        text: `Pago registrado — Referencia: ${data.referencia}`,
+      });
+
+      setTimeout(() => {
+        router.push(`/payments/${data.pago_id}`);
+      }, 1500);
+    } catch (error) {
+      setMsg({
+        type: 'err',
+        text: error instanceof Error ? error.message : 'Error inesperado',
+      });
+    } finally {
+      setPaying(false);
     }
   }
 

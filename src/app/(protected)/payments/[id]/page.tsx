@@ -1,3 +1,4 @@
+// src/app/(protected)/payments/[id]/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
@@ -66,7 +67,7 @@ export default function PaymentDetailPage() {
             <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Referencia de pago</p>
             <p className="font-mono text-cnt-red text-sm">{pago.referencia}</p>
           </div>
-          <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${ESTATUS_STYLE[pago.estatus] ?? 'bg-gray-800 text-gray-400'}`}>
+          <span className={`text-gray-500 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${ESTATUS_STYLE[pago.estatus] ?? 'bg-gray-800 text-gray-400'}`}>
             {ESTATUS_ICON[pago.estatus]} {pago.estatus.charAt(0).toUpperCase() + pago.estatus.slice(1)}
           </span>
         </div>
