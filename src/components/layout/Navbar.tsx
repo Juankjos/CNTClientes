@@ -110,7 +110,7 @@ export default function Navbar({ user }: NavbarProps) {
           ))}
           {user.rol === 'admin' && (
             <Link href="/admin" onClick={() => setOpen(false)}
-              className="block px-6 py-3 text-sm text-cnt-red hover:bg-red-950/20 transition-colors">
+              className="text-white block px-6 py-3 text-sm text-cnt-red hover:bg-red-950/20 transition-colors">
               Panel Admin
             </Link>
           )}

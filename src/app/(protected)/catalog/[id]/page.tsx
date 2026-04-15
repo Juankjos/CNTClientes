@@ -90,9 +90,9 @@ export default function CatalogDetailPage() {
           <span className={`px-2.5 py-1 rounded text-xs uppercase tracking-wider font-semibold ${BADGES[item.categoria] ?? 'bg-gray-800 text-gray-300'}`}>
             {item.categoria}
           </span>
-          <span className="text-gray-600 text-xs">
+          {/* <span className="text-gray-600 text-xs">
             {new Date(item.fecha_publicacion).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </span>
+          </span> */}
         </div>
         <h1 className="font-display text-3xl text-white mb-3">{item.titulo}</h1>
         {item.descripcion && (
@@ -160,7 +160,7 @@ export default function CatalogDetailPage() {
             )}
 
             <button onClick={handlePay} disabled={paying}
-              className="cursor-pointer w-full bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
+              className="cursor-pointer w-full bg-red-700 hover:bg-red-800 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
               {paying ? (
                 <><svg className="bg-cnt-red hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed cursor-pointer text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>

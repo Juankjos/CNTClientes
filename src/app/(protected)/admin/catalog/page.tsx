@@ -156,7 +156,7 @@ export default function AdminCatalogPage() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="text-cnt-red font-mono text-xs tracking-widest uppercase mb-1">
+          <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">
             Panel de administración
           </p>
           <h1 className="font-display text-3xl text-white">

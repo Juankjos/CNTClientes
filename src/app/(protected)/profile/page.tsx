@@ -48,7 +48,7 @@ export default function ProfilePage() {
   return (
     <div className="max-w-xl mx-auto">
       <div className="mb-8">
-        <p className="text-cnt-red font-mono text-xs tracking-widest uppercase mb-1">Mi cuenta</p>
+        <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">Mi cuenta</p>
         <h1 className="font-display text-3xl text-white">Mi Perfil</h1>
       </div>
 

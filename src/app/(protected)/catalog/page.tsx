@@ -178,9 +178,9 @@ export default function CatalogPage() {
                   <span className="text-white font-semibold text-sm">
                     {item.precio === 0 ? 'Gratuito' : `$${Number(item.precio).toFixed(2)} MXN`}
                   </span>
-                  <span className="text-gray-600 text-xs">
+                  {/* <span className="text-gray-600 text-xs">
                     {new Date(item.fecha_publicacion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                  </span>
+                  </span> */}
                 </div>
               </div>
             </Link>
