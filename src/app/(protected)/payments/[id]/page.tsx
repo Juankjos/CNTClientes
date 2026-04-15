@@ -65,7 +65,7 @@ export default function PaymentDetailPage() {
         <div className="px-6 py-5 border-b border-cnt-border flex items-start justify-between gap-4">
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Referencia de pago</p>
-            <p className="font-mono text-cnt-red text-sm">{pago.referencia}</p>
+            <p className="font-mono text-gray-500 text-sm">{pago.referencia}</p>
           </div>
           <span className={`text-gray-500 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${ESTATUS_STYLE[pago.estatus] ?? 'bg-gray-800 text-gray-400'}`}>
             {ESTATUS_ICON[pago.estatus]} {pago.estatus.charAt(0).toUpperCase() + pago.estatus.slice(1)}

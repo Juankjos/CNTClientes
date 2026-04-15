@@ -1,3 +1,4 @@
+// src/app/api/admin/users/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { pool } from '@/lib/db';

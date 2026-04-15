@@ -35,14 +35,29 @@ export default function AdminPage() {
   const [pagosTotal, setPagosTotal] = useState(0);
 
   const fetchUsers = useCallback(async () => {
-    setUserLoading(true);
-    const params = new URLSearchParams({ page: String(userPage) });
-    if (userQ) params.set('q', userQ);
-    const res = await fetch(apiPath(`/api/admin/users?${params.toString()}`));
-    const data = await res.json();
-    setUsers(data.users ?? []);
-    setUserTotal(data.pagination?.total ?? 0);
-    setUserLoading(false);
+    try {
+      setUserLoading(true);
+      setUserMsg('');
+
+      const params = new URLSearchParams({ page: String(userPage) });
+      if (userQ) params.set('q', userQ);
+
+      const res = await fetch(apiPath(`/api/admin/users?${params.toString()}`));
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `HTTP ${res.status}`);
+      }
+
+      setUsers(data.users ?? []);
+      setUserTotal(data.pagination?.total ?? 0);
+    } catch (error) {
+      setUsers([]);
+      setUserTotal(0);
+      setUserMsg(error instanceof Error ? error.message : 'No se pudieron cargar los usuarios');
+    } finally {
+      setUserLoading(false);
+    }
   }, [userPage, userQ]);
 
   const fetchLogs = useCallback(async () => {
@@ -222,7 +237,7 @@ export default function AdminPage() {
               <tbody className="divide-y divide-cnt-border">
                 {pagos.map((p: any) => (
                   <tr key={p.id} className="bg-cnt-dark hover:bg-cnt-surface/50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs text-cnt-red">{p.referencia}</td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.referencia}</td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{p.nombre ?? p.email}</td>
                     <td className="px-4 py-3 text-white text-xs max-w-32 truncate">{p.titulo}</td>
                     <td className="px-4 py-3 text-white font-medium">${Number(p.monto).toFixed(2)}</td>
