@@ -1,3 +1,4 @@
+// src/app/[protected]/profile/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { apiPath } from '@/lib/api-path';
@@ -8,6 +9,8 @@ export default function ProfilePage() {
   const [saving, setSaving]   = useState(false);
   const [tab, setTab]         = useState<'info' | 'password'>('info');
   const [msg, setMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     fetch(apiPath('/api/users/profile'))
@@ -19,22 +22,34 @@ export default function ProfilePage() {
     e.preventDefault();
     setSaving(true); setMsg(null);
     const fd   = new FormData(e.currentTarget);
-    const body: Record<string, string> = {};
-    fd.forEach((v, k) => { if (String(v).trim()) body[k] = String(v).trim(); });
+    const body =
+    tab === 'info'
+      ? {
+          nombre: String(fd.get('nombre') ?? '').trim(),
+          apellidos: String(fd.get('apellidos') ?? '').trim(),
+          telefono: String(fd.get('telefono') ?? '').trim(),
+          empresa: String(fd.get('empresa') ?? '').trim(),
+        }
+      : {
+          password_actual: String(fd.get('password_actual') ?? ''),
+          password_nuevo: String(fd.get('password_nuevo') ?? ''),
+        };
 
-    const res  = await fetch('/api/users/profile', {
+    const res = await fetch(apiPath('/api/users/profile'), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setSaving(false);
     setMsg(res.ok
       ? { type: 'ok', text: 'Perfil actualizado correctamente' }
       : { type: 'err', text: data.error ?? 'Error guardando cambios' }
     );
     if (res.ok) {
-      fetch('/api/users/profile').then(r => r.json()).then(setProfile);
+      fetch(apiPath('/api/users/profile'))
+        .then(r => r.json())
+        .then(setProfile);
     }
   }
 
@@ -126,14 +141,54 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">Contraseña actual</label>
-              <input name="password_actual" type="password" required placeholder="••••••••"
-                className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors" />
+              <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                Contraseña actual
+              </label>
+
+              <div className="relative">
+                <input
+                  name="password_actual"
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Ingresa tu contraseña actual"
+                  className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 pr-24 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
+                  aria-label={showCurrentPassword ? 'Ocultar contraseña actual' : 'Mostrar contraseña actual'}
+                  aria-pressed={showCurrentPassword}
+                >
+                  {showCurrentPassword ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
             </div>
+
             <div>
-              <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">Nueva contraseña</label>
-              <input name="password_nuevo" type="password" required placeholder="Mínimo 8 caracteres" minLength={8}
-                className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors" />
+              <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                Nueva contraseña
+              </label>
+
+              <div className="relative">
+                <input
+                  name="password_nuevo"
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Mínimo 8 caracteres"
+                  minLength={8}
+                  className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 pr-24 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
+                  aria-label={showNewPassword ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'}
+                  aria-pressed={showNewPassword}
+                >
+                  {showNewPassword ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
             </div>
           </div>
         )}

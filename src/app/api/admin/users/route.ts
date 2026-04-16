@@ -77,13 +77,24 @@ export async function GET(req: NextRequest) {
 }
 // POST /api/admin/users
 export async function POST(req: NextRequest) {
+  const connection = await pool.getConnection();
   try {
     const session = await getSession();
     if (requireAdmin(session)) {
       return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
     }
 
-    const { username, email, password, rol } = await req.json();
+    const body = await req.json();
+
+    const username = String(body.username ?? '').trim();
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const password = String(body.password ?? '');
+    const rol = body.rol === 'admin' ? 'admin' : 'cliente';
+
+    const nombre = String(body.nombre ?? '').trim();
+    const apellidos = String(body.apellidos ?? '').trim();
+    const telefono = String(body.telefono ?? '').trim();
+    const empresa = String(body.empresa ?? '').trim();
 
     if (!username || !email || !password) {
       return NextResponse.json(
@@ -92,27 +103,90 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!['admin', 'cliente'].includes(rol)) {
+      return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'La contraseña debe tener al menos 8 caracteres' },
+        { status: 400 }
+      );
+    }
+
+    await connection.beginTransaction();
+
     const hash = await bcrypt.hash(password, 12);
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO usuarios_clientes (username, email, password, rol)
-       VALUES (?, ?, ?, ?)`,
-      [username, email, hash, rol ?? 'cliente']
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO usuarios_clientes (
+          username,
+          email,
+          password,
+          rol,
+          email_verificado_at
+      )
+      VALUES (?, ?, ?, ?, NOW())`,
+      [username, email, hash, rol]
     );
+
+    const usuarioId = result.insertId;
+
+    if (rol === 'cliente') {
+      await connection.execute(
+        `INSERT INTO clientes_clientes (
+            usuario_id,
+            nombre,
+            apellidos,
+            telefono,
+            email,
+            empresa
+        )
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          usuarioId,
+          nombre || null,
+          apellidos || null,
+          telefono || null,
+          email,
+          empresa || null,
+        ]
+      );
+    }
+
+    await connection.commit();
 
     await logAction(
       session.user!.id,
       'crear_usuario',
       'usuarios',
-      `ID: ${result.insertId} - ${username}`
+      `ID: ${usuarioId} - ${username} - rol: ${rol}`
     );
 
-    return NextResponse.json({ ok: true, id: result.insertId }, { status: 201 });
-  } catch (error) {
-    console.error('[POST /api/admin/users] Error:', error);
     return NextResponse.json(
-      { error: 'Error interno al crear usuario' },
+      { ok: true, id: usuarioId },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    await connection.rollback();
+
+    if (error?.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json(
+        { error: 'El username o el email ya existen' },
+        { status: 409 }
+      );
+    }
+
+    console.error('[POST /api/admin/users] Error:', error);
+
+    return NextResponse.json(
+      {
+        error: 'Error interno al crear usuario',
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
+  } finally {
+    connection.release();
   }
 }

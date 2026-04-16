@@ -33,6 +33,24 @@ export default function AdminPage() {
   const [pagos, setPagos]       = useState<any[]>([]);
   const [pagosPage, setPagosPage] = useState(1);
   const [pagosTotal, setPagosTotal] = useState(0);
+  const emptyCreateUserForm = {
+    username: '',
+    email: '',
+    password: '',
+    rol: 'cliente' as 'admin' | 'cliente',
+    nombre: '',
+    apellidos: '',
+    telefono: '',
+    empresa: '',
+  };
+
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [createUserMsg, setCreateUserMsg] = useState<{
+    type: 'ok' | 'err';
+    text: string;
+  } | null>(null);
+  const [createUserForm, setCreateUserForm] = useState(emptyCreateUserForm);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -59,6 +77,48 @@ export default function AdminPage() {
       setUserLoading(false);
     }
   }, [userPage, userQ]);
+
+  async function handleCreateUser(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    try {
+      setCreatingUser(true);
+      setCreateUserMsg(null);
+
+      const res = await fetch(apiPath('/api/admin/users'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createUserForm),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `HTTP ${res.status}`);
+      }
+
+      setCreateUserMsg({
+        type: 'ok',
+        text: `Usuario creado correctamente (ID ${data.id})`,
+      });
+
+      setCreateUserForm(emptyCreateUserForm);
+      setShowCreateUser(false);
+
+      if (userPage !== 1) {
+        setUserPage(1);
+      } else {
+        await fetchUsers();
+      }
+    } catch (error) {
+      setCreateUserMsg({
+        type: 'err',
+        text: error instanceof Error ? error.message : 'No se pudo crear el usuario',
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  }
 
   const fetchLogs = useCallback(async () => {
     const params = new URLSearchParams({ page: String(logPage) });
@@ -140,17 +200,162 @@ export default function AdminPage() {
       {/* ======================== USUARIOS ======================== */}
       {tab === 'users' && (
         <div>
-          <div className="flex gap-3 mb-5">
-            <input value={userQ} onChange={e => setUserQ(e.target.value)}
-              placeholder="Buscar usuario..."
-              className="flex-1 max-w-sm bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cnt-red transition-colors"
-              onKeyDown={e => e.key === 'Enter' && fetchUsers()}
-            />
-            <button onClick={fetchUsers}
-              className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors">
-              Buscar
-            </button>
-            <span className="px-3 py-2 text-gray-500 text-sm">{userTotal} usuarios</span>
+          <div className="mb-5 space-y-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <input
+                value={userQ}
+                onChange={e => setUserQ(e.target.value)}
+                placeholder="Buscar usuario..."
+                className="flex-1 max-w-sm bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                onKeyDown={e => e.key === 'Enter' && fetchUsers()}
+              />
+              <button
+                onClick={fetchUsers}
+                className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+              >
+                Buscar
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreateUser(v => !v);
+                  setCreateUserMsg(null);
+                }}
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
+              >
+                {showCreateUser ? 'Cerrar formulario' : '+ Nuevo usuario'}
+              </button>
+              <span className="px-3 py-2 text-gray-500 text-sm">{userTotal} usuarios</span>
+            </div>
+
+            {userMsg && (
+              <div className="rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300">
+                {userMsg}
+              </div>
+            )}
+
+            {createUserMsg && (
+              <div
+                className={`rounded-lg px-4 py-3 text-sm border ${
+                  createUserMsg.type === 'ok'
+                    ? 'bg-green-950 text-green-300 border-green-800'
+                    : 'bg-red-950 text-red-300 border-cnt-red'
+                }`}
+              >
+                {createUserMsg.text}
+              </div>
+            )}
+
+            {showCreateUser && (
+              <form
+                onSubmit={handleCreateUser}
+                className="rounded-xl border border-cnt-border bg-cnt-surface p-5 space-y-4"
+              >
+                <div>
+                  <p className="text-white text-sm font-semibold mb-1">Crear usuario</p>
+                  <p className="text-gray-500 text-xs">
+                    Puedes crear cuentas de administrador o cliente.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    value={createUserForm.username}
+                    onChange={e => setCreateUserForm(f => ({ ...f, username: e.target.value }))}
+                    placeholder="Username"
+                    required
+                    className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                  />
+                  <input
+                    value={createUserForm.email}
+                    onChange={e => setCreateUserForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="Correo electrónico"
+                    type="email"
+                    required
+                    className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    value={createUserForm.password}
+                    onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Contraseña"
+                    type="password"
+                    required
+                    minLength={8}
+                    className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                  />
+                  <select
+                    value={createUserForm.rol}
+                    onChange={e =>
+                      setCreateUserForm(f => ({
+                        ...f,
+                        rol: e.target.value as 'admin' | 'cliente',
+                      }))
+                    }
+                    className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                  >
+                    <option value="cliente">Cliente</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+
+                {createUserForm.rol === 'cliente' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input
+                        value={createUserForm.nombre}
+                        onChange={e => setCreateUserForm(f => ({ ...f, nombre: e.target.value }))}
+                        placeholder="Nombre"
+                        className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                      />
+                      <input
+                        value={createUserForm.apellidos}
+                        onChange={e => setCreateUserForm(f => ({ ...f, apellidos: e.target.value }))}
+                        placeholder="Apellidos"
+                        className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input
+                        value={createUserForm.telefono}
+                        onChange={e => setCreateUserForm(f => ({ ...f, telefono: e.target.value }))}
+                        placeholder="Teléfono"
+                        className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                      />
+                      <input
+                        value={createUserForm.empresa}
+                        onChange={e => setCreateUserForm(f => ({ ...f, empresa: e.target.value }))}
+                        placeholder="Empresa"
+                        className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateUser(false);
+                      setCreateUserMsg(null);
+                      setCreateUserForm(emptyCreateUserForm);
+                    }}
+                    className="cursor-pointer px-4 py-2 bg-cnt-dark border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingUser}
+                    className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white rounded-lg text-sm transition-colors"
+                  >
+                    {creatingUser ? 'Creando...' : 'Crear usuario'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-cnt-border">
@@ -260,7 +465,7 @@ export default function AdminPage() {
                             Confirmar
                           </button>
                           <button onClick={() => confirmPago(p.id, 'cancelado')}
-                            className="px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs">
+                            className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs">
                             Cancelar
                           </button>
                         </div>

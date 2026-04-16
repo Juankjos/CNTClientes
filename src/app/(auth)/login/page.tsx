@@ -40,6 +40,7 @@ function LoginPageContent() {
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const userRef = useRef<HTMLInputElement>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     userRef.current?.focus();
@@ -109,7 +110,7 @@ function LoginPageContent() {
           </div>
 
           <div className="flex gap-6 text-xs text-gray-600">
-            <span>© 2025 TV Cable Tepa</span>
+            <span>© 2026 TV Cable Tepa</span>
             <span>Tepatitlán de Morelos, Jalisco</span>
           </div>
         </div>
@@ -168,24 +169,32 @@ function LoginPageContent() {
                   <label className="text-xs text-gray-400 uppercase tracking-widest">
                     Contraseña
                   </label>
-                  {/* <Link
-                    href="/forgot-password"
-                    className="text-xs text-cnt-blue hover:text-cnt-blue transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </Link> */}
                 </div>
-                <input
-                  name="password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-blue transition-colors"
-                  placeholder="Contraseña"
-                />
+
+                <div className="relative">
+                  <input
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 pr-20 text-sm focus:outline-none focus:border-cnt-blue transition-colors"
+                    placeholder="Contraseña"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
+
                 <Link
                   href="/forgot-password"
-                  className="text-xs text-cnt-blue hover:text-cnt-blue transition-colors"
+                  className="mt-2 inline-block text-xs text-cnt-blue hover:text-cnt-blue transition-colors"
                 >
                   ¿Olvidaste tu contraseña?
                 </Link>

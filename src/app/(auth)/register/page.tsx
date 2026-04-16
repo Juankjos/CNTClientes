@@ -83,11 +83,28 @@ export default function RegisterPage() {
               className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input name="username" required placeholder="Usuario"
-              className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red" />
-            <input name="email" type="email" required placeholder="Correo electrónico"
-              className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <div className="w-full">
+              <input
+                name="username"
+                required
+                placeholder="Usuario"
+                className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+              />
+            </div>
+
+            <div className="w-full">
+              <input
+                name="email"
+                type="email"
+                required
+                placeholder="Correo electrónico"
+                className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+              />
+              <p className="mt-2 text-gray-500 text-sm text-right">
+                Te enviaremos un correo de verificación para activar tu cuenta.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
