@@ -16,7 +16,8 @@
     "next": "15.5.15",
     "nodemailer": "^8.0.5",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "sweetalert2": "^11.26.24"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",

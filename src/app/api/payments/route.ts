@@ -117,9 +117,9 @@ export async function POST(req: NextRequest) {
     if (!clienteRows.length) {
       const [ins] = await pool.execute<ResultSetHeader>(
         `INSERT INTO clientes_clientes (usuario_id, nombre, email)
-          SELECT id, username, email
-          FROM usuarios_clientes
-          WHERE id = ?`,
+         SELECT id, username, email
+         FROM usuarios_clientes
+         WHERE id = ?`,
         [session.user.id]
       );
 
@@ -130,8 +130,8 @@ export async function POST(req: NextRequest) {
 
     const [catRows] = await pool.execute<RowDataPacket[]>(
       `SELECT precio
-        FROM catalogo_clientes
-        WHERE id = ? AND activo = 1`,
+       FROM catalogo_clientes
+       WHERE id = ? AND activo = 1`,
       [catalogo_id]
     );
 
@@ -139,15 +139,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ítem no encontrado' }, { status: 404 });
     }
 
-    const [yaP] = await pool.execute<RowDataPacket[]>(
-      `SELECT id
-        FROM pagos_clientes
-        WHERE cliente_id = ? AND catalogo_id = ? AND estatus = 'pagado'`,
+    // Permitir recompra, pero evitar duplicar pagos pendientes
+    const [pendientes] = await pool.execute<RowDataPacket[]>(
+      `SELECT id, referencia
+       FROM pagos_clientes
+       WHERE cliente_id = ? AND catalogo_id = ? AND estatus = 'pendiente'
+       ORDER BY id DESC
+       LIMIT 1`,
       [clienteId, catalogo_id]
     );
 
-    if (yaP.length) {
-      return NextResponse.json({ error: 'Ya pagaste este contenido' }, { status: 409 });
+    if (pendientes.length) {
+      return NextResponse.json(
+        {
+          error: 'Ya tienes un pago pendiente para este contenido. Termínalo o espera antes de generar otro.',
+          referencia: pendientes[0].referencia,
+        },
+        { status: 409 }
+      );
     }
 
     const referencia = `CNT-${Date.now()}-${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -155,12 +164,17 @@ export async function POST(req: NextRequest) {
 
     const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO pagos_clientes
-          (cliente_id, catalogo_id, referencia, monto, metodo_pago, estatus)
-        VALUES (?, ?, ?, ?, ?, 'pendiente')`,
+         (cliente_id, catalogo_id, referencia, monto, metodo_pago, estatus)
+       VALUES (?, ?, ?, ?, ?, 'pendiente')`,
       [clienteId, catalogo_id, referencia, monto, metodo_pago]
     );
 
-    await logAction(session.user.id, 'crear_pago', 'pagos', `Ref: ${referencia} | Monto: ${monto}`);
+    await logAction(
+      session.user.id,
+      'crear_pago',
+      'pagos',
+      `Ref: ${referencia} | Monto: ${monto}`
+    );
 
     return NextResponse.json(
       { ok: true, pago_id: result.insertId, referencia, monto },

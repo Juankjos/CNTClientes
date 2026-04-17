@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Swal from 'sweetalert2';
 import Link from 'next/link';
 import { apiPath } from '@/lib/api-path';
 import Image from 'next/image';
@@ -29,6 +30,22 @@ export default function CatalogDetailPage() {
   }, [id]);
 
   async function handlePay() {
+    const result = await Swal.fire({
+      title: '¿Continuar?',
+      text: 'Estás a punto de proceder al pago de este producto. ¿Continuar?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      background: '#111827',
+      color: '#ffffff',
+      confirmButtonColor: '#b91c1c',
+      cancelButtonColor: '#374151',
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       setPaying(true);
       setMsg(null);
@@ -52,14 +69,16 @@ export default function CatalogDetailPage() {
         return;
       }
 
-      setMsg({
-        type: 'ok',
-        text: `Pago registrado — Referencia: ${data.referencia}`,
+      await Swal.fire({
+        title: 'Pago registrado',
+        text: `Referencia: ${data.referencia}`,
+        icon: 'success',
+        background: '#111827',
+        color: '#ffffff',
+        confirmButtonColor: '#16a34a',
       });
 
-      setTimeout(() => {
-        router.push(`/payments/${data.pago_id}`);
-      }, 1500);
+      router.push(`/payments/${data.pago_id}`);
     } catch (error) {
       setMsg({
         type: 'err',
@@ -135,6 +154,7 @@ export default function CatalogDetailPage() {
                 : `$${Number(item.precio).toFixed(2)} MXN`}
             </p>
           </div>
+
           {item.ya_pagado > 0 && (
             <span className="px-3 py-1.5 bg-green-900/50 text-green-400 border border-green-800 rounded-lg text-sm">
               ✓ Ya adquirido
@@ -142,58 +162,51 @@ export default function CatalogDetailPage() {
           )}
         </div>
 
-        {item.ya_pagado > 0 ? (
-          <div>
-            {item.archivo && (
-              <a href={item.archivo} target="_blank" rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-green-800 hover:bg-green-700 text-white py-3 rounded-lg text-sm font-semibold transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                Descargar contenido
-              </a>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Método de pago */}
-            {/* {Number(item.precio) > 0 && (
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Método de pago</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {['transferencia','tarjeta'].map(m => (
-                    <button key={m} onClick={() => setMethod(m)}
-                      className={`py-2.5 px-3 rounded-lg border text-xs capitalize transition-colors ${
-                        method === m
-                          ? 'border-cnt-red bg-red-950/30 text-white'
-                          : 'border-cnt-border text-gray-500 hover:text-white hover:border-gray-500'
-                      }`}>
-                      {m === 'transferencia' ? '🏦 Transferencia' : '💳 Tarjeta'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )} */}
+        <div className="space-y-4">
+          {item.ya_pagado > 0 && item.archivo && (
+            <a
+              href={item.archivo}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 bg-green-800 hover:bg-green-700 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Descargar contenido
+            </a>
+          )}
 
-            {msg && (
-              <div className={`px-4 py-3 rounded-lg text-sm ${
-                msg.type === 'ok' ? 'bg-green-950 text-green-300 border border-green-800' : 'bg-red-950 text-red-300 border border-cnt-red'
-              }`}>
-                {msg.text}
-              </div>
-            )}
+          {msg && (
+            <div
+              className={`px-4 py-3 rounded-lg text-sm ${
+                msg.type === 'ok'
+                  ? 'bg-green-950 text-green-300 border border-green-800'
+                  : 'bg-red-950 text-red-300 border border-cnt-red'
+              }`}
+            >
+              {msg.text}
+            </div>
+          )}
 
-            <button onClick={handlePay} disabled={paying}
-              className="cursor-pointer w-full bg-red-700 hover:bg-red-800 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
-              {paying ? (
-                <><svg className="bg-cnt-red hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed cursor-pointer text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                </svg>Procesando...</>
-              ) : Number(item.precio) === 0 ? 'Acceder gratis' : `Pagar $${Number(item.precio).toFixed(2)} MXN`}
-            </button>
-          </div>
-        )}
+          <button
+            onClick={handlePay}
+            disabled={paying}
+            className="cursor-pointer w-full bg-red-700 hover:bg-red-800 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2"
+          >
+            {paying ? (
+              'Procesando...'
+            ) : item.ya_pagado > 0 ? (
+              Number(item.precio) === 0
+                ? 'Acceder nuevamente'
+                : `Comprar nuevamente por $${Number(item.precio).toFixed(2)} MXN`
+            ) : Number(item.precio) === 0 ? (
+              'Acceder gratis'
+            ) : (
+              `Pagar $${Number(item.precio).toFixed(2)} MXN`
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
