@@ -405,12 +405,12 @@ export default function AdminPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <button onClick={() => toggleUser(u.id, u.activo)}
-                          className="px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs transition-colors">
+                          className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs transition-colors">
                           {u.activo ? 'Desactivar' : 'Activar'}
                         </button>
                         {u.bloqueado_hasta && (
                           <button onClick={() => desbloquearUser(u.id)}
-                            className="px-2 py-1 bg-yellow-950/50 border border-yellow-800 text-yellow-300 hover:text-yellow-200 rounded text-xs transition-colors">
+                            className="cursor-pointer px-2 py-1 bg-yellow-950/50 border border-yellow-800 text-yellow-300 hover:text-yellow-200 rounded text-xs transition-colors">
                             Desbloquear
                           </button>
                         )}
@@ -461,7 +461,7 @@ export default function AdminPage() {
                       {p.estatus === 'pendiente' && (
                         <div className="flex gap-1">
                           <button onClick={() => confirmPago(p.id, 'pagado')}
-                            className="px-2 py-1 bg-green-900/50 border border-green-800 text-green-300 hover:text-green-200 rounded text-xs">
+                            className="cursor-pointer px-2 py-1 bg-green-900/50 border border-green-800 text-green-300 hover:text-green-200 rounded text-xs">
                             Confirmar
                           </button>
                           <button onClick={() => confirmPago(p.id, 'cancelado')}

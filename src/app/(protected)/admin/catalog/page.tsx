@@ -319,7 +319,7 @@ export default function AdminCatalogPage() {
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="bg-cnt-red hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed cursor-pointer text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
+                className="bg-cnt-red border border-cnt-border hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed cursor-pointer text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
               >
                 {loading ? 'Guardando...' : editId ? 'Actualizar' : 'Crear'}
               </button>
