@@ -201,9 +201,9 @@ export default function CatalogDetailPage() {
                 ? 'Acceder nuevamente'
                 : `Comprar nuevamente por $${Number(item.precio).toFixed(2)} MXN`
             ) : Number(item.precio) === 0 ? (
-              'Acceder gratis'
+              'Ir a Formulario'
             ) : (
-              `Pagar $${Number(item.precio).toFixed(2)} MXN`
+              `Ir al pago $${Number(item.precio).toFixed(2)} MXN`
             )}
           </button>
         </div>
