@@ -1,38 +1,88 @@
-//src/app/(protected)/admin/page.tsx
+// src/app/(protected)/admin/page.tsx
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { apiPath } from '@/lib/api-path';
 
 const NIVEL_STYLE: Record<string, string> = {
-  debug:   'bg-gray-800 text-gray-400',
-  info:    'bg-blue-900/50 text-blue-300',
+  debug: 'bg-gray-800 text-gray-400',
+  info: 'bg-blue-900/50 text-blue-300',
   warning: 'bg-yellow-900/50 text-yellow-300',
-  error:   'bg-red-950 text-cnt-red',
+  error: 'bg-red-950 text-cnt-red',
+};
+
+const PETICION_STATUS_LABEL: Record<string, string> = {
+  pendiente: 'Pendiente',
+  aceptada: 'Aceptada',
+  rechazada: 'Rechazada',
+};
+
+const PETICION_STATUS_STYLE: Record<string, string> = {
+  pendiente: 'bg-yellow-900/50 text-yellow-300 border-yellow-800',
+  aceptada: 'bg-green-900/50 text-green-300 border-green-800',
+  rechazada: 'bg-red-950 text-red-300 border-cnt-red',
+};
+
+type ReviewForm = {
+  motivo: string;
+  descripcion: string;
+  usar_domicilio: boolean;
+  domicilio_slot: string;
+  fecha_deseada: string;
+  comentario_admin: string;
+  estatus: 'pendiente' | 'aceptada' | 'rechazada';
+};
+
+const emptyReviewForm: ReviewForm = {
+  motivo: '',
+  descripcion: '',
+  usar_domicilio: false,
+  domicilio_slot: '',
+  fecha_deseada: '',
+  comentario_admin: '',
+  estatus: 'pendiente',
 };
 
 export default function AdminPage() {
-  const [tab, setTab] = useState<'users' | 'logs' | 'pagos'>('users');
+  const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('users');
 
   // --- Users state ---
-  const [users, setUsers]     = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [userPage, setUserPage] = useState(1);
   const [userTotal, setUserTotal] = useState(0);
-  const [userQ, setUserQ]     = useState('');
+  const [userQ, setUserQ] = useState('');
   const [userLoading, setUserLoading] = useState(false);
-  const [editUser, setEditUser] = useState<any>(null);
-  const [userMsg, setUserMsg]   = useState('');
+  const [userMsg, setUserMsg] = useState('');
 
   // --- Logs state ---
-  const [logs, setLogs]         = useState<any[]>([]);
-  const [logPage, setLogPage]   = useState(1);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [logPage, setLogPage] = useState(1);
   const [logTotal, setLogTotal] = useState(0);
   const [logNivel, setLogNivel] = useState('');
 
   // --- Pagos admin state ---
-  const [pagos, setPagos]       = useState<any[]>([]);
+  const [pagos, setPagos] = useState<any[]>([]);
   const [pagosPage, setPagosPage] = useState(1);
   const [pagosTotal, setPagosTotal] = useState(0);
+
+  // --- Peticiones admin state ---
+  const [peticiones, setPeticiones] = useState<any[]>([]);
+  const [peticionesPage, setPeticionesPage] = useState(1);
+  const [peticionesTotal, setPeticionesTotal] = useState(0);
+  const [peticionesStatus, setPeticionesStatus] = useState('');
+  const [peticionesLoading, setPeticionesLoading] = useState(false);
+  const [peticionMsg, setPeticionMsg] = useState('');
+
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewEditing, setReviewEditing] = useState(false);
+  const [reviewPeticion, setReviewPeticion] = useState<any>(null);
+  const [reviewHistorial, setReviewHistorial] = useState<any[]>([]);
+  const [reviewDomicilios, setReviewDomicilios] = useState<any[]>([]);
+  const [reviewForm, setReviewForm] = useState<ReviewForm>(emptyReviewForm);
+
+  // --- Create user state ---
   const emptyCreateUserForm = {
     username: '',
     email: '',
@@ -123,22 +173,160 @@ export default function AdminPage() {
   const fetchLogs = useCallback(async () => {
     const params = new URLSearchParams({ page: String(logPage) });
     if (logNivel) params.set('nivel', logNivel);
-    const res  = await fetch(apiPath(`/api/admin/logs?${params.toString()}`));
-    const data = await res.json();
+
+    const res = await fetch(apiPath(`/api/admin/logs?${params.toString()}`));
+    const data = await res.json().catch(() => ({}));
+
     setLogs(data.logs ?? []);
     setLogTotal(data.pagination?.total ?? 0);
   }, [logPage, logNivel]);
 
   const fetchPagos = useCallback(async () => {
-    const res  = await fetch(apiPath(`/api/payments?page=${pagosPage}`));
-    const data = await res.json();
+    const res = await fetch(apiPath(`/api/payments?page=${pagosPage}`));
+    const data = await res.json().catch(() => ({}));
+
     setPagos(data.pagos ?? []);
     setPagosTotal(data.pagination?.total ?? 0);
   }, [pagosPage]);
 
-  useEffect(() => { if (tab === 'users') fetchUsers(); }, [tab, fetchUsers]);
-  useEffect(() => { if (tab === 'logs')  fetchLogs(); },  [tab, fetchLogs]);
-  useEffect(() => { if (tab === 'pagos') fetchPagos(); }, [tab, fetchPagos]);
+  const fetchPeticiones = useCallback(async () => {
+    try {
+      setPeticionesLoading(true);
+      setPeticionMsg('');
+
+      const params = new URLSearchParams({ page: String(peticionesPage) });
+      if (peticionesStatus) params.set('estatus', peticionesStatus);
+
+      const res = await fetch(apiPath(`/api/admin/peticiones?${params.toString()}`));
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      setPeticiones(data.peticiones ?? []);
+      setPeticionesTotal(data.pagination?.total ?? 0);
+    } catch (error) {
+      setPeticiones([]);
+      setPeticionesTotal(0);
+      setPeticionMsg(error instanceof Error ? error.message : 'No se pudieron cargar las peticiones');
+    } finally {
+      setPeticionesLoading(false);
+    }
+  }, [peticionesPage, peticionesStatus]);
+
+  async function openPeticionReview(id: number) {
+    try {
+      setReviewOpen(true);
+      setReviewLoading(true);
+      setReviewEditing(false);
+
+      const res = await fetch(apiPath(`/api/admin/peticiones/${id}`));
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      setReviewPeticion(data.peticion);
+      setReviewHistorial(data.historial ?? []);
+      setReviewDomicilios(data.domiciliosDisponibles ?? []);
+
+      setReviewForm({
+        motivo: data.peticion?.motivo ?? '',
+        descripcion: data.peticion?.descripcion ?? '',
+        usar_domicilio: Boolean(data.peticion?.usar_domicilio),
+        domicilio_slot: data.peticion?.domicilio_slot ? String(data.peticion.domicilio_slot) : '',
+        fecha_deseada: data.peticion?.fecha_deseada
+          ? String(data.peticion.fecha_deseada).slice(0, 10)
+          : '',
+        comentario_admin: data.peticion?.comentario_admin ?? '',
+        estatus: (data.peticion?.estatus ?? 'pendiente') as ReviewForm['estatus'],
+      });
+    } catch (error) {
+      setPeticionMsg(error instanceof Error ? error.message : 'No se pudo abrir la petición');
+      setReviewOpen(false);
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
+  async function changePeticionStatus(id: number, estatus: 'aceptada' | 'rechazada') {
+    const ok = window.confirm(
+      estatus === 'aceptada'
+        ? '¿Aceptar esta petición?'
+        : '¿Rechazar esta petición?'
+    );
+
+    if (!ok) return;
+
+    const res = await fetch(apiPath(`/api/admin/peticiones/${id}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estatus }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setPeticionMsg(data.error ?? 'No se pudo actualizar la petición');
+      return;
+    }
+
+    await fetchPeticiones();
+
+    if (reviewPeticion?.id === id) {
+      await openPeticionReview(id);
+    }
+  }
+
+  async function saveReviewPeticion() {
+    if (!reviewPeticion) return;
+
+    setReviewSaving(true);
+
+    const res = await fetch(apiPath(`/api/admin/peticiones/${reviewPeticion.id}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        motivo: reviewForm.motivo,
+        descripcion: reviewForm.descripcion,
+        usar_domicilio: reviewForm.usar_domicilio,
+        domicilio_slot: reviewForm.usar_domicilio ? Number(reviewForm.domicilio_slot) : null,
+        fecha_deseada: reviewForm.fecha_deseada,
+        comentario_admin: reviewForm.comentario_admin,
+        estatus: reviewForm.estatus,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    setReviewSaving(false);
+
+    if (!res.ok) {
+      setPeticionMsg(data.error ?? 'No se pudo guardar la petición');
+      return;
+    }
+
+    await fetchPeticiones();
+    await openPeticionReview(reviewPeticion.id);
+    setReviewEditing(false);
+  }
+
+  useEffect(() => {
+    if (tab === 'users') fetchUsers();
+  }, [tab, fetchUsers]);
+
+  useEffect(() => {
+    if (tab === 'logs') fetchLogs();
+  }, [tab, fetchLogs]);
+
+  useEffect(() => {
+    if (tab === 'pagos') fetchPagos();
+  }, [tab, fetchPagos]);
+
+  useEffect(() => {
+    if (tab === 'peticiones') fetchPeticiones();
+  }, [tab, fetchPeticiones]);
 
   async function toggleUser(id: number, activo: number) {
     await fetch(apiPath(`/api/admin/users/${id}`), {
@@ -169,30 +357,46 @@ export default function AdminPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">Panel de administración</p>
+          <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">
+            Panel de administración
+          </p>
           <h1 className="font-display text-3xl text-white">Administrador CNT</h1>
         </div>
-        <Link href="/admin/catalog"
-          className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors">
-          Gestionar Catálogo
-        </Link>
-        <Link href="/catalog"
-          className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors">
-          ← Portal
-        </Link>
+
+        <div className="flex gap-3">
+          <Link
+            href="/admin/catalog"
+            className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
+          >
+            Gestionar Catálogo
+          </Link>
+          <Link
+            href="/catalog"
+            className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
+          >
+            ← Portal
+          </Link>
+        </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-cnt-surface border border-cnt-border rounded-lg p-1 w-fit">
-        {(['users', 'pagos', 'logs'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
+        {(['users', 'pagos', 'peticiones', 'logs'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
             className={`cursor-pointer px-5 py-2 rounded-md text-sm transition-colors capitalize ${
               tab === t ? 'bg-cnt-dark text-white' : 'text-gray-500 hover:text-white'
-            }`}>
-            {t === 'users' ? 'Usuarios' : t === 'pagos' ? 'Pagos' : 'Logs'}
+            }`}
+          >
+            {t === 'users'
+              ? 'Usuarios'
+              : t === 'pagos'
+                ? 'Pagos'
+                : t === 'peticiones'
+                  ? 'Peticiones'
+                  : 'Logs'}
           </button>
         ))}
       </div>
@@ -204,10 +408,10 @@ export default function AdminPage() {
             <div className="flex flex-wrap gap-3 items-center">
               <input
                 value={userQ}
-                onChange={e => setUserQ(e.target.value)}
+                onChange={(e) => setUserQ(e.target.value)}
                 placeholder="Buscar usuario..."
                 className="flex-1 max-w-sm bg-cnt-surface border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cnt-red transition-colors"
-                onKeyDown={e => e.key === 'Enter' && fetchUsers()}
+                onKeyDown={(e) => e.key === 'Enter' && fetchUsers()}
               />
               <button
                 onClick={fetchUsers}
@@ -217,7 +421,7 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => {
-                  setShowCreateUser(v => !v);
+                  setShowCreateUser((v) => !v);
                   setCreateUserMsg(null);
                 }}
                 className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
@@ -260,14 +464,14 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input
                     value={createUserForm.username}
-                    onChange={e => setCreateUserForm(f => ({ ...f, username: e.target.value }))}
+                    onChange={(e) => setCreateUserForm((f) => ({ ...f, username: e.target.value }))}
                     placeholder="Username"
                     required
                     className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
                   />
                   <input
                     value={createUserForm.email}
-                    onChange={e => setCreateUserForm(f => ({ ...f, email: e.target.value }))}
+                    onChange={(e) => setCreateUserForm((f) => ({ ...f, email: e.target.value }))}
                     placeholder="Correo electrónico"
                     type="email"
                     required
@@ -278,7 +482,7 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input
                     value={createUserForm.password}
-                    onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))}
+                    onChange={(e) => setCreateUserForm((f) => ({ ...f, password: e.target.value }))}
                     placeholder="Contraseña"
                     type="password"
                     required
@@ -287,8 +491,8 @@ export default function AdminPage() {
                   />
                   <select
                     value={createUserForm.rol}
-                    onChange={e =>
-                      setCreateUserForm(f => ({
+                    onChange={(e) =>
+                      setCreateUserForm((f) => ({
                         ...f,
                         rol: e.target.value as 'admin' | 'cliente',
                       }))
@@ -305,13 +509,13 @@ export default function AdminPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <input
                         value={createUserForm.nombre}
-                        onChange={e => setCreateUserForm(f => ({ ...f, nombre: e.target.value }))}
+                        onChange={(e) => setCreateUserForm((f) => ({ ...f, nombre: e.target.value }))}
                         placeholder="Nombre"
                         className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
                       />
                       <input
                         value={createUserForm.apellidos}
-                        onChange={e => setCreateUserForm(f => ({ ...f, apellidos: e.target.value }))}
+                        onChange={(e) => setCreateUserForm((f) => ({ ...f, apellidos: e.target.value }))}
                         placeholder="Apellidos"
                         className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
                       />
@@ -320,13 +524,13 @@ export default function AdminPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <input
                         value={createUserForm.telefono}
-                        onChange={e => setCreateUserForm(f => ({ ...f, telefono: e.target.value }))}
+                        onChange={(e) => setCreateUserForm((f) => ({ ...f, telefono: e.target.value }))}
                         placeholder="Teléfono"
                         className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
                       />
                       <input
                         value={createUserForm.empresa}
-                        onChange={e => setCreateUserForm(f => ({ ...f, empresa: e.target.value }))}
+                        onChange={(e) => setCreateUserForm((f) => ({ ...f, empresa: e.target.value }))}
                         placeholder="Empresa"
                         className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
                       />
@@ -381,14 +585,18 @@ export default function AdminPage() {
                       ))}
                     </tr>
                   ))
-                ) : users.map(u => (
+                ) : users.map((u) => (
                   <tr key={u.id} className="bg-cnt-dark hover:bg-cnt-surface/50 transition-colors">
                     <td className="px-4 py-3 text-white font-medium">{u.username}</td>
                     <td className="px-4 py-3 text-gray-400">{u.email}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${
-                        u.rol === 'admin' ? 'bg-red-950 text-cnt-red' : 'bg-cnt-surface text-gray-400'
-                      }`}>{u.rol}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${
+                          u.rol === 'admin' ? 'bg-red-950 text-cnt-red' : 'bg-cnt-surface text-gray-400'
+                        }`}
+                      >
+                        {u.rol}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       {u.bloqueado_hasta && new Date(u.bloqueado_hasta) > new Date() ? (
@@ -404,13 +612,17 @@ export default function AdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={() => toggleUser(u.id, u.activo)}
-                          className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs transition-colors">
+                        <button
+                          onClick={() => toggleUser(u.id, u.activo)}
+                          className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs transition-colors"
+                        >
                           {u.activo ? 'Desactivar' : 'Activar'}
                         </button>
                         {u.bloqueado_hasta && (
-                          <button onClick={() => desbloquearUser(u.id)}
-                            className="cursor-pointer px-2 py-1 bg-yellow-950/50 border border-yellow-800 text-yellow-300 hover:text-yellow-200 rounded text-xs transition-colors">
+                          <button
+                            onClick={() => desbloquearUser(u.id)}
+                            className="cursor-pointer px-2 py-1 bg-yellow-950/50 border border-yellow-800 text-yellow-300 hover:text-yellow-200 rounded text-xs transition-colors"
+                          >
                             Desbloquear
                           </button>
                         )}
@@ -430,12 +642,15 @@ export default function AdminPage() {
           <div className="mb-4 flex items-center gap-3">
             <span className="text-gray-500 text-sm">{pagosTotal} pagos totales</span>
           </div>
+
           <div className="overflow-x-auto rounded-xl border border-cnt-border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-cnt-border bg-cnt-surface">
-                  {['Referencia', 'Cliente', 'Contenido', 'Monto', 'Método', 'Estatus', 'Fecha', 'Acciones'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">{h}</th>
+                  {['Referencia', 'Cliente', 'Contenido', 'Monto', 'Método', 'Estatus', 'Fecha', 'Acciones'].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -448,11 +663,17 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-white font-medium">${Number(p.monto).toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs capitalize">{p.metodo_pago}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded border text-[10px] uppercase ${
-                        p.estatus === 'pagado' ? 'bg-green-900/50 text-green-300 border-green-800'
-                        : p.estatus === 'pendiente' ? 'bg-yellow-900/50 text-yellow-300 border-yellow-800'
-                        : 'bg-gray-800 text-gray-400 border-gray-700'
-                      }`}>{p.estatus}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded border text-[10px] uppercase ${
+                          p.estatus === 'pagado'
+                            ? 'bg-green-900/50 text-green-300 border-green-800'
+                            : p.estatus === 'pendiente'
+                              ? 'bg-yellow-900/50 text-yellow-300 border-yellow-800'
+                              : 'bg-gray-800 text-gray-400 border-gray-700'
+                        }`}
+                      >
+                        {p.estatus}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-gray-600 text-xs">
                       {new Date(p.created_at).toLocaleDateString('es-MX')}
@@ -460,12 +681,16 @@ export default function AdminPage() {
                     <td className="px-4 py-3">
                       {p.estatus === 'pendiente' && (
                         <div className="flex gap-1">
-                          <button onClick={() => confirmPago(p.id, 'pagado')}
-                            className="cursor-pointer px-2 py-1 bg-green-900/50 border border-green-800 text-green-300 hover:text-green-200 rounded text-xs">
+                          <button
+                            onClick={() => confirmPago(p.id, 'pagado')}
+                            className="cursor-pointer px-2 py-1 bg-green-900/50 border border-green-800 text-green-300 hover:text-green-200 rounded text-xs"
+                          >
                             Confirmar
                           </button>
-                          <button onClick={() => confirmPago(p.id, 'cancelado')}
-                            className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs">
+                          <button
+                            onClick={() => confirmPago(p.id, 'cancelado')}
+                            className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs"
+                          >
                             Cancelar
                           </button>
                         </div>
@@ -476,14 +701,134 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+
           {pagosTotal > 10 && (
             <div className="flex justify-center gap-2 mt-4">
-              <button disabled={pagosPage <= 1} onClick={() => setPagosPage(p => p - 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40">
+              <button
+                disabled={pagosPage <= 1}
+                onClick={() => setPagosPage((p) => p - 1)}
+                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+              >
                 ← Anterior
               </button>
-              <button disabled={pagosPage * 10 >= pagosTotal} onClick={() => setPagosPage(p => p + 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40">
+              <button
+                disabled={pagosPage * 10 >= pagosTotal}
+                onClick={() => setPagosPage((p) => p + 1)}
+                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+              >
+                Siguiente →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================== PETICIONES ======================== */}
+      {tab === 'peticiones' && (
+        <div>
+          <div className="mb-5 flex flex-wrap gap-2 items-center">
+            {[
+              { value: '', label: 'Todas' },
+              { value: 'pendiente', label: 'Pendientes' },
+              { value: 'aceptada', label: 'Aceptadas' },
+              { value: 'rechazada', label: 'Rechazadas' },
+            ].map((item) => (
+              <button
+                key={item.value || 'all'}
+                onClick={() => {
+                  setPeticionesStatus(item.value);
+                  setPeticionesPage(1);
+                }}
+                className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs transition-colors border ${
+                  peticionesStatus === item.value
+                    ? 'border-cnt-red bg-red-950/30 text-white'
+                    : 'border-cnt-border text-gray-500 hover:text-white'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+
+            <span className="px-3 py-1.5 text-gray-600 text-xs">
+              {peticionesTotal} registros
+            </span>
+          </div>
+
+          {peticionMsg && (
+            <div className="rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300 mb-4">
+              {peticionMsg}
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-xl border border-cnt-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-cnt-border bg-cnt-surface">
+                  {['Cliente', 'Contenido', 'Estatus', 'Acciones'].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-cnt-border">
+                {peticionesLoading ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i} className="bg-cnt-dark">
+                      {[...Array(4)].map((_, j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="h-4 bg-cnt-surface rounded animate-pulse" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : peticiones.map((p: any) => (
+                  <tr key={p.id} className="bg-cnt-dark hover:bg-cnt-surface/50 transition-colors">
+                    <td className="px-4 py-3 text-white">{p.cliente_nombre}</td>
+                    <td className="px-4 py-3 text-white">{p.titulo}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider ${
+                          PETICION_STATUS_STYLE[p.estatus] ?? 'bg-gray-800 text-gray-400 border-gray-700'
+                        }`}
+                      >
+                        {PETICION_STATUS_LABEL[p.estatus] ?? p.estatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => openPeticionReview(p.id)}
+                          className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-300 hover:text-white rounded text-xs transition-colors"
+                        >
+                          Revisar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {peticionesTotal > 10 && (
+            <div className="flex justify-center gap-2 mt-4">
+              <button
+                disabled={peticionesPage <= 1}
+                onClick={() => setPeticionesPage((p) => p - 1)}
+                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+              >
+                ← Anterior
+              </button>
+              <button
+                disabled={peticionesPage * 10 >= peticionesTotal}
+                onClick={() => setPeticionesPage((p) => p + 1)}
+                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+              >
                 Siguiente →
               </button>
             </div>
@@ -495,11 +840,19 @@ export default function AdminPage() {
       {tab === 'logs' && (
         <div>
           <div className="flex gap-2 mb-5">
-            {['', 'debug', 'info', 'warning', 'error'].map(n => (
-              <button key={n} onClick={() => { setLogNivel(n); setLogPage(1); }}
+            {['', 'debug', 'info', 'warning', 'error'].map((n) => (
+              <button
+                key={n}
+                onClick={() => {
+                  setLogNivel(n);
+                  setLogPage(1);
+                }}
                 className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs transition-colors border ${
-                  logNivel === n ? 'border-cnt-red bg-red-950/30 text-white' : 'border-cnt-border text-gray-500 hover:text-white'
-                }`}>
+                  logNivel === n
+                    ? 'border-cnt-red bg-red-950/30 text-white'
+                    : 'border-cnt-border text-gray-500 hover:text-white'
+                }`}
+              >
                 {n === '' ? 'Todos' : n}
               </button>
             ))}
@@ -510,8 +863,10 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-cnt-border bg-cnt-surface">
-                  {['Nivel', 'Usuario', 'Acción', 'Módulo', 'Descripción', 'IP', 'Fecha'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">{h}</th>
+                  {['Nivel', 'Usuario', 'Acción', 'Módulo', 'Descripción', 'IP', 'Fecha'].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -529,7 +884,10 @@ export default function AdminPage() {
                     <td className="px-4 py-2.5 text-gray-500 text-xs max-w-48 truncate">{l.descripcion ?? '—'}</td>
                     <td className="px-4 py-2.5 text-gray-600 text-xs">{l.ip ?? '—'}</td>
                     <td className="px-4 py-2.5 text-gray-600 text-xs whitespace-nowrap">
-                      {new Date(l.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                      {new Date(l.created_at).toLocaleString('es-MX', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
                     </td>
                   </tr>
                 ))}
@@ -539,16 +897,349 @@ export default function AdminPage() {
 
           {logTotal > 20 && (
             <div className="flex justify-center gap-2 mt-4">
-              <button disabled={logPage <= 1} onClick={() => setLogPage(p => p - 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40">
+              <button
+                disabled={logPage <= 1}
+                onClick={() => setLogPage((p) => p - 1)}
+                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+              >
                 ← Anterior
               </button>
-              <button disabled={logPage * 20 >= logTotal} onClick={() => setLogPage(p => p + 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40">
+              <button
+                disabled={logPage * 20 >= logTotal}
+                onClick={() => setLogPage((p) => p + 1)}
+                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+              >
                 Siguiente →
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ======================== PETICIONES MODAL ======================== */}
+      {reviewOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cnt-border bg-cnt-dark shadow-2xl">
+            <div className="p-6 border-b border-cnt-border flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                  Revisar petición
+                </p>
+                <h2 className="text-white text-xl font-semibold">
+                  {reviewPeticion?.titulo ?? 'Cargando...'}
+                </h2>
+
+                <p className="text-gray-500 text-sm mt-1">
+                  Cliente: {reviewPeticion?.cliente_nombre || 'Sin nombre'}
+                </p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Teléfono: {reviewPeticion?.cliente_telefono?.trim() || 'No tiene'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setReviewOpen(false);
+                  setReviewEditing(false);
+                  setReviewPeticion(null);
+                  setReviewHistorial([]);
+                  setReviewDomicilios([]);
+                  setReviewForm(emptyReviewForm);
+                }}
+                className="cursor-pointer px-3 py-2 rounded-lg border border-cnt-border text-gray-300 hover:text-white"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="p-6">
+              {reviewLoading ? (
+                <div className="space-y-4 animate-pulse">
+                  <div className="h-6 rounded bg-cnt-surface w-1/3" />
+                  <div className="h-24 rounded bg-cnt-surface" />
+                  <div className="h-24 rounded bg-cnt-surface" />
+                </div>
+              ) : reviewPeticion ? (
+                <div className="space-y-6">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span
+                      className={`px-2 py-1 rounded border text-xs uppercase tracking-wider ${
+                        PETICION_STATUS_STYLE[reviewPeticion.estatus] ?? 'bg-gray-800 text-gray-400 border-gray-700'
+                      }`}
+                    >
+                      {PETICION_STATUS_LABEL[reviewPeticion.estatus] ?? reviewPeticion.estatus}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {!reviewEditing && reviewPeticion.estatus !== 'aceptada' && (
+                      <button
+                        type="button"
+                        onClick={() => changePeticionStatus(reviewPeticion.id, 'aceptada')}
+                        className="cursor-pointer px-4 py-2 rounded-lg border border-green-800 text-green-300 hover:bg-green-900/30 text-sm"
+                      >
+                        Aceptar Petición
+                      </button>
+                    )}
+
+                    {!reviewEditing && reviewPeticion.estatus !== 'rechazada' && (
+                      <button
+                        type="button"
+                        onClick={() => changePeticionStatus(reviewPeticion.id, 'rechazada')}
+                        className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-red text-red-300 hover:bg-red-950/30 text-sm"
+                      >
+                        Rechazar Petición
+                      </button>
+                    )}
+
+                    {!reviewEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setReviewEditing(true)}
+                        className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-border text-white hover:border-cnt-red text-sm"
+                      >
+                        Editar
+                      </button>
+                    )}
+                  </div>
+
+                  {reviewEditing ? (
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Motivo / Título
+                        </label>
+                        <textarea
+                          value={reviewForm.motivo}
+                          onChange={(e) => setReviewForm((f) => ({ ...f, motivo: e.target.value }))}
+                          rows={3}
+                          className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Descripción
+                        </label>
+                        <textarea
+                          value={reviewForm.descripcion}
+                          onChange={(e) => setReviewForm((f) => ({ ...f, descripcion: e.target.value }))}
+                          rows={5}
+                          className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between gap-4 mb-3">
+                          <label className="text-xs text-gray-400 uppercase tracking-widest">
+                            ¿Usar domicilio?
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReviewForm((f) => ({
+                                ...f,
+                                usar_domicilio: !f.usar_domicilio,
+                                domicilio_slot: !f.usar_domicilio ? f.domicilio_slot : '',
+                              }))
+                            }
+                            className={`cursor-pointer px-3 py-2 rounded-lg text-sm border transition-colors ${
+                              reviewForm.usar_domicilio
+                                ? 'bg-cnt-red border-cnt-red text-white'
+                                : 'bg-cnt-surface border-cnt-border text-gray-300'
+                            }`}
+                          >
+                            {reviewForm.usar_domicilio ? 'Sí' : 'No'}
+                          </button>
+                        </div>
+
+                        {reviewForm.usar_domicilio && (
+                          <>
+                            <select
+                              value={reviewForm.domicilio_slot}
+                              onChange={(e) =>
+                                setReviewForm((f) => ({ ...f, domicilio_slot: e.target.value }))
+                              }
+                              className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                            >
+                              <option value="">Selecciona un domicilio</option>
+                              {reviewDomicilios.map((dom: any) => (
+                                <option key={dom.slot} value={dom.slot}>
+                                  {dom.label}
+                                </option>
+                              ))}
+                            </select>
+
+                            {reviewForm.domicilio_slot && (
+                              <p className="mt-3 text-sm text-gray-400">
+                                {
+                                  reviewDomicilios.find(
+                                    (d: any) => String(d.slot) === reviewForm.domicilio_slot
+                                  )?.value
+                                }
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                            Fecha deseada
+                          </label>
+                          <input
+                            type="date"
+                            value={reviewForm.fecha_deseada}
+                            onChange={(e) =>
+                              setReviewForm((f) => ({ ...f, fecha_deseada: e.target.value }))
+                            }
+                            className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                            Estatus
+                          </label>
+                          <select
+                            value={reviewForm.estatus}
+                            onChange={(e) =>
+                              setReviewForm((f) => ({
+                                ...f,
+                                estatus: e.target.value as ReviewForm['estatus'],
+                              }))
+                            }
+                            className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                          >
+                            <option value="pendiente">Pendiente</option>
+                            <option value="aceptada">Aceptada</option>
+                            <option value="rechazada">Rechazada</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Comentario admin
+                        </label>
+                        <textarea
+                          value={reviewForm.comentario_admin}
+                          onChange={(e) =>
+                            setReviewForm((f) => ({ ...f, comentario_admin: e.target.value }))
+                          }
+                          rows={4}
+                          className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red resize-none"
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setReviewEditing(false)}
+                          className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-border text-gray-300 hover:text-white"
+                        >
+                          Cancelar edición
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={reviewSaving}
+                          onClick={saveReviewPeticion}
+                          className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-border bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white"
+                        >
+                          {reviewSaving ? 'Guardando...' : 'Guardar'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Motivo / Título</p>
+                        <p className="text-white">{reviewPeticion.motivo}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Descripción
+                        </p>
+                        <p className="text-white whitespace-pre-wrap">{reviewPeticion.descripcion}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Ubicación</p>
+                        <p className="text-white">
+                          {reviewPeticion.usar_domicilio
+                            ? reviewPeticion.domicilio_texto
+                            : 'Sin ubicación'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Fecha deseada
+                        </p>
+                        <p className="text-white">
+                          {new Date(reviewPeticion.fecha_deseada).toLocaleDateString('es-MX')}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Comentario admin
+                        </p>
+                        <p className="text-white whitespace-pre-wrap">
+                          {reviewPeticion.comentario_admin || '—'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t border-cnt-border pt-6">
+                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-4">
+                      Historial de cambios
+                    </p>
+
+                    {reviewHistorial.length === 0 ? (
+                      <p className="text-sm text-gray-500">Sin historial.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {reviewHistorial.map((h: any) => (
+                          <div
+                            key={h.id}
+                            className="rounded-lg border border-cnt-border bg-cnt-surface p-4"
+                          >
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <span className="text-white text-sm font-medium">{h.accion}</span>
+                              <span className="text-gray-500 text-xs">
+                                {new Date(h.created_at).toLocaleString('es-MX')}
+                              </span>
+                              {h.admin_username && (
+                                <span className="text-gray-500 text-xs">por {h.admin_username}</span>
+                              )}
+                            </div>
+
+                            {h.campo && (
+                              <p className="text-sm text-gray-400 mb-1">
+                                Campo: <span className="text-white">{h.campo}</span>
+                              </p>
+                            )}
+
+                            <p className="text-sm text-gray-500">
+                              Anterior: <span className="text-white">{h.valor_anterior ?? '—'}</span>
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Nuevo: <span className="text-white">{h.valor_nuevo ?? '—'}</span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
     </div>

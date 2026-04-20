@@ -69,6 +69,9 @@ export default function CatalogDetailPage() {
         return;
       }
 
+      const categoria = String(item?.categoria ?? '').toLowerCase();
+      const requierePeticion = categoria === 'noticia' || categoria === 'reportaje';
+
       await Swal.fire({
         title: 'Pago registrado',
         text: `Referencia: ${data.referencia}`,
@@ -77,6 +80,11 @@ export default function CatalogDetailPage() {
         color: '#ffffff',
         confirmButtonColor: '#16a34a',
       });
+
+      if (requierePeticion) {
+        router.push(`/peticiones/nueva?pago_id=${data.pago_id}&catalogo_id=${id}`);
+        return;
+      }
 
       router.push(`/payments/${data.pago_id}`);
     } catch (error) {

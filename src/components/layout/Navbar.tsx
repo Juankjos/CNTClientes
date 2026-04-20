@@ -1,3 +1,4 @@
+// src/components/layout/Navbar.tsx
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -7,16 +8,19 @@ import { apiPath } from '@/lib/api-path';
 
 interface NavbarProps { user: SessionUser }
 
-const navLinks = [
-  { href: '/catalog', label: 'Catálogo' },
-  { href: '/payments/history', label: 'Mis Pagos' },
-  { href: '/profile', label: 'Mi Perfil' },
-];
-
 export default function Navbar({ user }: NavbarProps) {
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  const navLinks = [
+    { href: '/catalog', label: 'Catálogo' },
+    { href: '/payments/history', label: 'Mis Pagos' },
+    ...(user.rol === 'cliente'
+      ? [{ href: '/peticiones', label: 'Mis Peticiones' }]
+      : []),
+    { href: '/profile', label: 'Mi Perfil' },
+  ];
 
   async function logout() {
     await fetch(apiPath('/api/auth/logout'), { method: 'POST' });
@@ -27,7 +31,6 @@ export default function Navbar({ user }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 bg-cnt-dark/95 backdrop-blur border-b border-cnt-border">
       <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
         <Link href="/catalog" className="flex items-center gap-3 group">
           <div className="w-7 h-7 bg-cnt-red rounded-sm flex items-center justify-center shrink-0">
             <span className="text-white font-black text-[10px]">CNT</span>
@@ -37,7 +40,6 @@ export default function Navbar({ user }: NavbarProps) {
           </span>
         </Link>
 
-        {/* Nav desktop */}
         <nav className="hidden md:flex items-center gap-1">
           {navLinks.map(({ href, label }) => (
             <Link
@@ -52,6 +54,7 @@ export default function Navbar({ user }: NavbarProps) {
               {label}
             </Link>
           ))}
+
           {user.rol === 'admin' && (
             <Link
               href="/admin"
@@ -66,7 +69,6 @@ export default function Navbar({ user }: NavbarProps) {
           )}
         </nav>
 
-        {/* User actions */}
         <div className="flex items-center gap-3">
           <span className="hidden sm:block text-xs text-gray-500">
             {user.username}
@@ -76,6 +78,7 @@ export default function Navbar({ user }: NavbarProps) {
               </span>
             )}
           </span>
+
           <button
             onClick={logout}
             className="cursor-pointer px-3 py-1.5 text-xs text-gray-400 hover:text-white border border-cnt-border hover:border-gray-500 rounded-md transition-all"
@@ -83,8 +86,10 @@ export default function Navbar({ user }: NavbarProps) {
             Salir
           </button>
 
-          {/* Mobile menu btn */}
-          <button onClick={() => setOpen(!open)} className="md:hidden text-gray-400 hover:text-white">
+          <button
+            onClick={() => setOpen(!open)}
+            className="md:hidden text-gray-400 hover:text-white"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {open
                 ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
@@ -95,7 +100,6 @@ export default function Navbar({ user }: NavbarProps) {
         </div>
       </div>
 
-      {/* Mobile nav */}
       {open && (
         <div className="md:hidden border-t border-cnt-border bg-cnt-surface">
           {navLinks.map(({ href, label }) => (
@@ -108,9 +112,13 @@ export default function Navbar({ user }: NavbarProps) {
               {label}
             </Link>
           ))}
+
           {user.rol === 'admin' && (
-            <Link href="/admin" onClick={() => setOpen(false)}
-              className="text-white block px-6 py-3 text-sm text-cnt-red hover:bg-red-950/20 transition-colors">
+            <Link
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="block px-6 py-3 text-sm text-cnt-red hover:bg-red-950/20 transition-colors"
+            >
               Panel Admin
             </Link>
           )}
