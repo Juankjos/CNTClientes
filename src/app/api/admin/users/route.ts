@@ -27,23 +27,41 @@ export async function GET(req: NextRequest) {
 
     const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
 
-    const where = q ? 'WHERE username LIKE ? OR email LIKE ?' : '';
-    const filterParams: (string | number)[] = q ? [`%${q}%`, `%${q}%`] : [];
+    const where = q
+      ? `
+        WHERE
+          u.username LIKE ?
+          OR u.email LIKE ?
+          OR c.nombre LIKE ?
+          OR c.apellidos LIKE ?
+          OR CONCAT_WS(' ', c.nombre, c.apellidos) LIKE ?
+          OR c.telefono LIKE ?
+      `
+      : '';
+
+    const filterParams: (string | number)[] = q
+      ? [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
+      : [];
 
     const rowsSql = `
       SELECT
-        id,
-        username,
-        email,
-        rol,
-        activo,
-        intentos_login,
-        bloqueado_hasta,
-        ultimo_login,
-        ultima_ip
-      FROM usuarios_clientes
+        u.id,
+        u.username,
+        u.email,
+        u.rol,
+        u.activo,
+        u.intentos_login,
+        u.bloqueado_hasta,
+        u.ultimo_login,
+        u.ultima_ip,
+        c.nombre,
+        c.apellidos,
+        c.telefono
+      FROM usuarios_clientes u
+      LEFT JOIN clientes_clientes c
+        ON c.usuario_id = u.id
       ${where}
-      ORDER BY id DESC
+      ORDER BY u.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 
@@ -51,7 +69,9 @@ export async function GET(req: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) AS total
-      FROM usuarios_clientes
+      FROM usuarios_clientes u
+      LEFT JOIN clientes_clientes c
+        ON c.usuario_id = u.id
       ${where}
     `;
 

@@ -215,6 +215,12 @@ export default function AdminPage() {
     }
   }, [peticionesPage, peticionesStatus]);
 
+  const getNombreCompleto = (u: any) => {
+    const nombre = String(u?.nombre ?? '').trim();
+    const apellidos = String(u?.apellidos ?? '').trim();
+    return [nombre, apellidos].filter(Boolean).join(' ') || '—';
+  };
+
   async function openPeticionReview(id: number) {
     try {
       setReviewOpen(true);
@@ -567,10 +573,11 @@ export default function AdminPage() {
               <thead>
                 <tr className="border-b border-cnt-border bg-cnt-surface">
                   <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Usuario</th>
+                  <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Nombre completo</th>
+                  <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Teléfono</th>
                   <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Email</th>
                   <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Rol</th>
                   <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Estado</th>
-                  <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Último login</th>
                   <th className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">Acciones</th>
                 </tr>
               </thead>
@@ -578,7 +585,7 @@ export default function AdminPage() {
                 {userLoading ? (
                   [...Array(5)].map((_, i) => (
                     <tr key={i} className="bg-cnt-dark">
-                      {[...Array(6)].map((_, j) => (
+                      {[...Array(7)].map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-cnt-surface rounded animate-pulse" />
                         </td>
@@ -588,7 +595,17 @@ export default function AdminPage() {
                 ) : users.map((u) => (
                   <tr key={u.id} className="bg-cnt-dark hover:bg-cnt-surface/50 transition-colors">
                     <td className="px-4 py-3 text-white font-medium">{u.username}</td>
+
+                    <td className="px-4 py-3 text-gray-300">
+                      {getNombreCompleto(u)}
+                    </td>
+
+                    <td className="px-4 py-3 text-gray-400">
+                      {u.telefono?.trim() || '—'}
+                    </td>
+
                     <td className="px-4 py-3 text-gray-400">{u.email}</td>
+
                     <td className="px-4 py-3">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${
@@ -598,6 +615,7 @@ export default function AdminPage() {
                         {u.rol}
                       </span>
                     </td>
+
                     <td className="px-4 py-3">
                       {u.bloqueado_hasta && new Date(u.bloqueado_hasta) > new Date() ? (
                         <span className="text-cnt-red text-xs">🔒 Bloqueado</span>
@@ -607,9 +625,7 @@ export default function AdminPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {u.ultimo_login ? new Date(u.ultimo_login).toLocaleDateString('es-MX') : '—'}
-                    </td>
+
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <button
@@ -925,9 +941,18 @@ export default function AdminPage() {
                 <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
                   Revisar petición
                 </p>
-                <h2 className="text-white text-xl font-semibold">
-                  {reviewPeticion?.titulo ?? 'Cargando...'}
-                </h2>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-white text-xl font-semibold">
+                    {reviewPeticion?.titulo ?? 'Cargando...'}
+                  </h2>
+
+                  {reviewPeticion?.categoria && (
+                    <span className="px-2 py-1 rounded-md border border-cnt-border bg-cnt-surface text-xs uppercase tracking-wider text-gray-300">
+                      {reviewPeticion.categoria}
+                    </span>
+                  )}
+                </div>
 
                 <p className="text-gray-500 text-sm mt-1">
                   Cliente: {reviewPeticion?.cliente_nombre || 'Sin nombre'}
@@ -972,27 +997,27 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    {!reviewEditing && reviewPeticion.estatus !== 'aceptada' && (
-                      <button
-                        type="button"
-                        onClick={() => changePeticionStatus(reviewPeticion.id, 'aceptada')}
-                        className="cursor-pointer px-4 py-2 rounded-lg border border-green-800 text-green-300 hover:bg-green-900/30 text-sm"
-                      >
-                        Aceptar Petición
-                      </button>
+                    {!reviewEditing && reviewPeticion.estatus === 'pendiente' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => changePeticionStatus(reviewPeticion.id, 'aceptada')}
+                          className="cursor-pointer px-4 py-2 rounded-lg border border-green-800 text-green-300 hover:bg-green-900/30 text-sm"
+                        >
+                          Aceptar Petición
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => changePeticionStatus(reviewPeticion.id, 'rechazada')}
+                          className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-red text-red-300 hover:bg-red-950/30 text-sm"
+                        >
+                          Rechazar Petición
+                        </button>
+                      </>
                     )}
 
-                    {!reviewEditing && reviewPeticion.estatus !== 'rechazada' && (
-                      <button
-                        type="button"
-                        onClick={() => changePeticionStatus(reviewPeticion.id, 'rechazada')}
-                        className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-red text-red-300 hover:bg-red-950/30 text-sm"
-                      >
-                        Rechazar Petición
-                      </button>
-                    )}
-
-                    {!reviewEditing && (
+                    {!reviewEditing && reviewPeticion.estatus === 'pendiente' && (
                       <button
                         type="button"
                         onClick={() => setReviewEditing(true)}
@@ -1188,7 +1213,7 @@ export default function AdminPage() {
                         <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
                           Comentario admin
                         </p>
-                        <p className="text-white whitespace-pre-wrap">
+                        <p className="text-yellow-300 whitespace-pre-wrap">
                           {reviewPeticion.comentario_admin || '—'}
                         </p>
                       </div>
