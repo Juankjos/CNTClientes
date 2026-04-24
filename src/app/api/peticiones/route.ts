@@ -141,14 +141,21 @@ export async function POST(req: NextRequest) {
     const clienteId = Number(cliente.id);
 
     const [pagoRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id, catalogo_id
-       FROM pagos_clientes
-       WHERE id = ? AND cliente_id = ?`,
+      `SELECT id, catalogo_id, estatus
+        FROM pagos_clientes
+        WHERE id = ? AND cliente_id = ?`,
       [pago_id, clienteId]
     );
 
     if (!pagoRows.length) {
       return NextResponse.json({ error: 'Pago no encontrado.' }, { status: 404 });
+    }
+
+    if (String(pagoRows[0].estatus) !== 'pagado') {
+      return NextResponse.json(
+        { error: 'El formulario solo está disponible cuando el pago está aprobado.' },
+        { status: 403 }
+      );
     }
 
     if (Number(pagoRows[0].catalogo_id) !== Number(catalogo_id)) {
@@ -165,7 +172,10 @@ export async function POST(req: NextRequest) {
 
     if (dupRows.length) {
       return NextResponse.json(
-        { error: 'Ya existe una petición para este pago.' },
+        {
+          error: 'Ya existe una petición para este pago.',
+          code: 'PETICION_YA_EXISTE',
+        },
         { status: 409 }
       );
     }

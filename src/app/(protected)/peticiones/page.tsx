@@ -5,7 +5,7 @@ import { apiPath } from '@/lib/api-path';
 
 const STATUS_LABEL: Record<string, string> = {
   pendiente: 'Pendiente',
-  aceptada: 'Completada',
+  aceptada: 'Aceptada',
   rechazada: 'Rechazada',
 };
 
@@ -97,12 +97,12 @@ export default function MisPeticionesPage() {
                     Categoría: {p.categoria}
                   </p>
                   <p className="text-gray-600 text-xs mt-2">
-                    Creada: {new Date(p.created_at).toLocaleDateString('es-MX')}
+                    Solicitud creada: {new Date(p.created_at).toLocaleDateString('es-MX')}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded border text-xs uppercase tracking-wider ${
+                  <span className={`inline-block mt-1 px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider ${
                     STATUS_STYLE[p.estatus] ?? 'bg-gray-800 text-gray-400 border-gray-700'
                   }`}>
                     {STATUS_LABEL[p.estatus] ?? p.estatus}
@@ -136,7 +136,7 @@ export default function MisPeticionesPage() {
 
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
-                      Ubicación
+                      Ubicación para la actividad
                     </p>
                     <p className="text-white text-sm">
                       {p.usar_domicilio ? p.domicilio_texto : 'Sin ubicación'}
@@ -155,7 +155,7 @@ export default function MisPeticionesPage() {
                   {p.comentario_admin && (
                     <div>
                       <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
-                        Comentario admin
+                        Comentario del administrador
                       </p>
                       <p className="text-white text-sm whitespace-pre-wrap">{p.comentario_admin}</p>
                     </div>

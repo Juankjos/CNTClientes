@@ -17,7 +17,10 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/catalog', label: 'Catálogo' },
     { href: '/payments/history', label: 'Mis Pagos' },
     ...(user.rol === 'cliente'
-      ? [{ href: '/peticiones', label: 'Mis Peticiones' }]
+      ? [
+          { href: '/peticiones', label: 'Mis Peticiones' },
+          { href: '/formularios', label: 'Mis Formularios' },
+        ]
       : []),
     { href: '/profile', label: 'Mi Perfil' },
   ];

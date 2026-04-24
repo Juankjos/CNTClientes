@@ -1192,7 +1192,7 @@ export default function AdminPage() {
                       </div>
 
                       <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Ubicación</p>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Ubicación para la actividad</p>
                         <p className="text-white">
                           {reviewPeticion.usar_domicilio
                             ? reviewPeticion.domicilio_texto
@@ -1211,7 +1211,7 @@ export default function AdminPage() {
 
                       <div>
                         <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
-                          Comentario admin
+                          Comentario del administrador
                         </p>
                         <p className="text-yellow-300 whitespace-pre-wrap">
                           {reviewPeticion.comentario_admin || '—'}
