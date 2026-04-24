@@ -52,7 +52,7 @@ export default function MisPeticionesPage() {
         {[
           { value: '', label: 'Todas' },
           { value: 'pendiente', label: 'Pendientes' },
-          { value: 'aceptada', label: 'Completadas' },
+          { value: 'aceptada', label: 'Aceptadas' },
           { value: 'rechazada', label: 'Rechazadas' },
         ].map((item) => (
           <button
