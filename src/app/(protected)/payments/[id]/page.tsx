@@ -20,9 +20,8 @@ const ESTATUS_ICON: Record<string, string> = {
   reembolsado: '↩️',
 };
 
-const router = useRouter();
-
 export default function PaymentDetailPage() {
+  const router = useRouter();
   const { id }  = useParams<{ id: string }>();
   const [pago, setPago]     = useState<any>(null);
   const [loading, setLoading] = useState(true);

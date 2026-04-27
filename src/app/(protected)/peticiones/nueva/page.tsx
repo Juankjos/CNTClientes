@@ -35,6 +35,7 @@ export default function NuevaPeticionPage() {
 
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [hasPeticion, setHasPeticion] = useState(false);
+  const [catalogoCategoria, setCatalogoCategoria] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -50,9 +51,15 @@ export default function NuevaPeticionPage() {
         setProfile(profileData);
         setPaymentStatus(pagoData.estatus ?? null);
         setHasPeticion(Boolean(pagoData.tiene_peticion));
+        setCatalogoCategoria(pagoData.categoria ?? '');
 
         if (pagoData.estatus !== 'pagado') {
           router.replace('/peticiones/referencia');
+          return;
+        }
+
+        if (Number(pagoData.catalogo_id) !== catalogoId) {
+          router.replace('/formularios');
           return;
         }
 
@@ -175,28 +182,42 @@ export default function NuevaPeticionPage() {
   }
 
   function pad(value: number) {
-  return String(value).padStart(2, '0');
-}
+    return String(value).padStart(2, '0');
+  }
 
-    function toSqlDateTime(date: Date) {
-        const yyyy = date.getFullYear();
-        const mm = pad(date.getMonth() + 1);
-        const dd = pad(date.getDate());
-        const hh = pad(date.getHours());
-        const mi = pad(date.getMinutes());
+  function toSqlDateTime(date: Date) {
+      const yyyy = date.getFullYear();
+      const mm = pad(date.getMonth() + 1);
+      const dd = pad(date.getDate());
+      const hh = pad(date.getHours());
+      const mi = pad(date.getMinutes());
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:00`;
+  }
 
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:00`;
-    }
+  function formatFechaAmPm(value: Date | null) {
+      if (!value) return '';
+      return new Intl.DateTimeFormat('es-MX', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          hour12: true,
+      }).format(value);
+  }
 
-    function formatFechaAmPm(value: Date | null) {
-        if (!value) return '';
+  function formatCategoria(value: string) {
+    const text = String(value ?? '').trim();
 
-        return new Intl.DateTimeFormat('es-MX', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            hour12: true,
-        }).format(value);
-    }
+    if (!text) return 'Noticia / Reportaje';
+
+    return text
+      .split('/')
+      .map((part) => {
+        const cleanPart = part.trim().toLowerCase();
+        return cleanPart.charAt(0).toUpperCase() + cleanPart.slice(1);
+      })
+      .join(' / ');
+  }
+
+  const categoriaLabel = formatCategoria(catalogoCategoria);
 
   if (loading) {
     return (
@@ -224,7 +245,7 @@ export default function NuevaPeticionPage() {
       >
         <div>
           <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-            Escribe brevemente el motivo o la razón para tu Noticia / Reportaje
+            Escribe brevemente el motivo o la razón para tu {categoriaLabel}
           </label>
           <textarea
             value={motivo}

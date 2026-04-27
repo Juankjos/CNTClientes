@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       p.catalogo_id,
       p.estatus,
       c.titulo AS servicio,
+      c.categoria,
       pc.id AS peticion_id
     FROM pagos_clientes p
     INNER JOIN clientes_clientes cc
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest) {
     catalogo_id: row.catalogo_id,
     estatus: row.estatus,
     servicio: row.servicio,
+    categoria: row.categoria,
     peticion_id: row.peticion_id,
     tiene_peticion: Boolean(row.peticion_id),
   });

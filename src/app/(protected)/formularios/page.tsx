@@ -95,7 +95,11 @@ export default function MisFormulariosPage() {
                       `/peticiones/nueva?pago_id=${item.pago_id}&catalogo_id=${item.catalogo_id}`
                     );
                   }}
-                  className="cursor-pointer disabled:cursor-not-allowed px-4 py-2 rounded-lg bg-cnt-red disabled:bg-gray-700 text-white text-sm font-semibold"
+                  className={`cursor-pointer disabled:cursor-not-allowed px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                    hasPeticion
+                      ? 'bg-cnt-red border-cnt-border text-white disabled:bg-gray-700'
+                      : 'bg-blue-950 border-blue-800 text-white hover:bg-blue-900 disabled:bg-gray-700 disabled:border-gray-700 disabled:text-gray-300'
+                  }`}
                 >
                   {hasPeticion ? 'Ver Formulario' : 'Rellenar Formulario'}
                 </button>
