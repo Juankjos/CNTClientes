@@ -157,7 +157,7 @@ export default function MisPeticionesPage() {
                       <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
                         Comentario del administrador
                       </p>
-                      <p className="text-white text-sm whitespace-pre-wrap">{p.comentario_admin}</p>
+                      <p className="text-yellow-300 text-sm whitespace-pre-wrap">{p.comentario_admin}</p>
                     </div>
                   )}
                 </div>

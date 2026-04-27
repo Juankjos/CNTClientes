@@ -15,6 +15,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
+    if (session.user.rol !== 'cliente') {
+      return NextResponse.json(
+        { error: 'Historial de pagos reservado para clientes' },
+        { status: 403 }
+      );
+    }
+
     const rawPage = req.nextUrl.searchParams.get('page');
     const parsedPage = Number.parseInt(rawPage ?? '1', 10);
     const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -22,17 +29,14 @@ export async function GET(req: NextRequest) {
     const limit = 10;
     const offset = (page - 1) * limit;
 
-    const isAdmin = session.user.rol === 'admin';
     const userId = Number(session.user.id);
 
-    if (!isAdmin && !Number.isInteger(userId)) {
+    if (!Number.isInteger(userId)) {
       return NextResponse.json(
         { error: 'Sesión inválida: user.id no es un entero válido' },
         { status: 500 }
       );
     }
-
-    const where = isAdmin ? '' : 'WHERE cl.usuario_id = ?';
 
     const rowsSql = `
       SELECT
@@ -46,25 +50,21 @@ export async function GET(req: NextRequest) {
       FROM pagos_clientes p
       INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
-      ${where}
+      WHERE cl.usuario_id = ?
       ORDER BY p.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 
-    const rowsParams: (string | number)[] = isAdmin ? [] : [userId];
-
-    const [rows] = await pool.execute<RowDataPacket[]>(rowsSql, rowsParams);
+    const [rows] = await pool.execute<RowDataPacket[]>(rowsSql, [userId]);
 
     const countSql = `
       SELECT COUNT(*) AS total
       FROM pagos_clientes p
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
-      ${where}
+      WHERE cl.usuario_id = ?
     `;
 
-    const countParams: (string | number)[] = isAdmin ? [] : [userId];
-
-    const [countRows] = await pool.execute<RowDataPacket[]>(countSql, countParams);
+    const [countRows] = await pool.execute<RowDataPacket[]>(countSql, [userId]);
 
     const total = Number(countRows[0]?.total ?? 0);
 
@@ -95,6 +95,13 @@ export async function POST(req: NextRequest) {
     const session = await getSession();
     if (!session.user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    if (session.user.rol !== 'cliente') {
+      return NextResponse.json(
+        { error: 'Solo los clientes pueden generar pagos' },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();

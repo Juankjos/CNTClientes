@@ -1,7 +1,7 @@
 // src/app/(protected)/payments/[id]/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPath } from '@/lib/api-path';
 import Image from 'next/image';
@@ -20,16 +20,46 @@ const ESTATUS_ICON: Record<string, string> = {
   reembolsado: '↩️',
 };
 
+const router = useRouter();
+
 export default function PaymentDetailPage() {
   const { id }  = useParams<{ id: string }>();
   const [pago, setPago]     = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(apiPath(`/api/payments/${id}`))
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { setPago(d); setLoading(false); });
-  }, [id]);
+    let cancelled = false;
+
+    async function load() {
+      const res = await fetch(apiPath(`/api/payments/${id}`));
+
+      if (res.status === 403) {
+        router.replace('/admin');
+        return;
+      }
+
+      if (!res.ok) {
+        if (!cancelled) {
+          setPago(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+
+      if (!cancelled) {
+        setPago(data);
+        setLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, router]);
 
   if (loading) return (
     <div className="max-w-2xl mx-auto space-y-4 animate-pulse">

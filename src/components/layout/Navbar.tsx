@@ -15,9 +15,9 @@ export default function Navbar({ user }: NavbarProps) {
 
   const navLinks = [
     { href: '/catalog', label: 'Catálogo' },
-    { href: '/payments/history', label: 'Mis Pagos' },
     ...(user.rol === 'cliente'
       ? [
+          { href: '/payments/history', label: 'Mis Pagos' },
           { href: '/peticiones', label: 'Mis Peticiones' },
           { href: '/formularios', label: 'Mis Formularios' },
         ]

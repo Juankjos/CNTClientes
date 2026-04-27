@@ -36,6 +36,11 @@ export default function PaymentHistoryPage() {
         const res = await fetch(apiPath(`/api/payments?page=${page}`));
         const body = await res.json().catch(() => null);
 
+        if (res.status === 403) {
+          router.replace('/admin');
+          return;
+        }
+
         if (!res.ok) {
           throw new Error(body?.detail || body?.error || `HTTP ${res.status}`);
         }

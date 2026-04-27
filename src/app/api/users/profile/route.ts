@@ -15,6 +15,15 @@ const clean = (value: unknown): string | null => {
   return text.length ? text : null;
 };
 
+const normalizeEmail = (value: unknown): string | null => {
+  const text = clean(value);
+  return text ? text.toLowerCase() : null;
+};
+
+const isValidEmail = (value: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+
 type AddressColumn = 'domicilio_1' | 'domicilio_2' | 'domicilio_3';
 type AddressSlot = 1 | 2 | 3;
 
@@ -127,6 +136,7 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json()) as Record<string, unknown>;
 
     const {
+      email,
       nombre,
       apellidos,
       telefono,
@@ -184,6 +194,56 @@ export async function PATCH(req: NextRequest) {
       await pool.execute(
         `UPDATE usuarios_clientes SET password = ? WHERE id = ?`,
         [hash, session.user.id]
+      );
+    }
+
+    // 2) Cambio de email
+    if (hasOwn(body, 'email')) {
+      const safeEmail = normalizeEmail(email);
+
+      if (!safeEmail) {
+        return NextResponse.json(
+          { error: 'El correo electrónico es obligatorio' },
+          { status: 400 }
+        );
+      }
+
+      if (!isValidEmail(safeEmail)) {
+        return NextResponse.json(
+          { error: 'El correo electrónico no tiene un formato válido' },
+          { status: 400 }
+        );
+      }
+
+      const [existingEmailRows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id
+          FROM usuarios_clientes
+          WHERE email = ? AND id <> ?
+          LIMIT 1`,
+        [safeEmail, session.user.id]
+      );
+
+      if (existingEmailRows.length) {
+        return NextResponse.json(
+          { error: 'Ese correo electrónico ya está registrado' },
+          { status: 409 }
+        );
+      }
+
+      await pool.execute(
+        `UPDATE usuarios_clientes
+          SET email = ?
+          WHERE id = ?`,
+        [safeEmail, session.user.id]
+      );
+
+      await ensureClienteRow(Number(session.user.id), safeEmail);
+
+      await pool.execute(
+        `UPDATE clientes_clientes
+          SET email = ?
+          WHERE usuario_id = ?`,
+        [safeEmail, session.user.id]
       );
     }
 

@@ -1,5 +1,4 @@
-// src/app/[protected]/profile/page.tsx
-'use client';
+// src/app/(protected)/profile/page.tsx
 'use client';
 import { useEffect, useState } from 'react';
 import { apiPath } from '@/lib/api-path';
@@ -212,7 +211,36 @@ export default function ProfilePage() {
 
     const fd = new FormData(e.currentTarget);
 
+    const email = String(fd.get('email') ?? '').trim();
+
+    if (!email) {
+      await Swal.fire({
+        title: 'Falta información',
+        text: 'El correo electrónico es obligatorio.',
+        icon: 'warning',
+        confirmButtonColor: '#dc2626',
+        background: '#1f2937',
+        color: '#fff',
+      });
+      setSavingSection(null);
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      await Swal.fire({
+        title: 'Correo inválido',
+        text: 'Ingresa un correo electrónico válido.',
+        icon: 'warning',
+        confirmButtonColor: '#dc2626',
+        background: '#1f2937',
+        color: '#fff',
+      });
+      setSavingSection(null);
+      return;
+    }
+
     const body = {
+      email,
       nombre: String(fd.get('nombre') ?? '').trim(),
       apellidos: String(fd.get('apellidos') ?? '').trim(),
       telefono: String(fd.get('telefono') ?? '').trim(),
@@ -512,6 +540,20 @@ export default function ProfilePage() {
 
               <div>
                 <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                  Correo electrónico
+                </label>
+                <input
+                  name="email"
+                  type="email"
+                  defaultValue={profile?.email ?? ''}
+                  placeholder="correo@ejemplo.com"
+                  required
+                  className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
                   Empresa / Organización
                 </label>
                 <input
@@ -527,7 +569,7 @@ export default function ProfilePage() {
                 disabled={savingSection === 'profile'}
                 className="cursor-pointer mt-2 w-full bg-cnt-red border border-cnt-border hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all"
               >
-                {savingSection === 'profile' ? 'Guardando...' : 'Guardar información personal'}
+                {savingSection === 'profile' ? 'Guardando...' : 'Guardar información de perfil'}
               </button>
             </form>
           </div>
