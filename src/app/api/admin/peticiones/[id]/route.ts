@@ -136,9 +136,14 @@ export async function PATCH(
         p.*,
         cl.domicilio_1,
         cl.domicilio_2,
-        cl.domicilio_3
+        cl.domicilio_3,
+        c.titulo AS catalogo_titulo,
+        c.categoria AS catalogo_categoria,
+        c.usa_rango_fechas AS catalogo_usa_rango_fechas,
+        c.rango_dias AS catalogo_rango_dias
       FROM peticiones_clientes p
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
+      INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
       WHERE p.id = ?
       LIMIT 1
       `,
@@ -250,6 +255,14 @@ export async function PATCH(
 
     maybePushChange('estatus', current.estatus, nextEstatus, 'estatus', estatusAction);
 
+    const isAcceptingNow =
+      String(current.estatus) !== 'aceptada' && nextEstatus === 'aceptada';
+
+    const isEspecialConRango =
+      String(current.catalogo_categoria ?? current.categoria).toLowerCase() === 'especial' &&
+      Boolean(current.catalogo_usa_rango_fechas) &&
+      Number(current.catalogo_rango_dias) > 0;
+
     if (updates.length) {
       await pool.execute(
         `
@@ -274,6 +287,35 @@ export async function PATCH(
             toHistoryValue(change.prev),
             toHistoryValue(change.next),
             session.user.id,
+          ]
+        );
+      }
+
+      if (isAcceptingNow && !isEspecialConRango) {
+        // Ajusta los nombres de columnas según tu tabla real de noticias.
+        // ---------------------------------------------------------
+        await pool.execute(
+          `
+          INSERT INTO noticias
+          (
+            peticion_id,
+            catalogo_id,
+            cliente_id,
+            titulo,
+            descripcion,
+            fecha_programada,
+            estatus,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, 'pendiente', NOW())
+          `,
+          [
+            id,
+            current.catalogo_id,
+            current.cliente_id,
+            nextMotivo,
+            nextDescripcion,
+            nextFechaDeseada,
           ]
         );
       }

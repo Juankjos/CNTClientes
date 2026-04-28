@@ -7,6 +7,23 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
+function toDateOnly(value: unknown) {
+  const text = String(value ?? '').trim();
+  return text.length >= 10 ? text.slice(0, 10) : '';
+}
+
+function addDaysToDateOnly(dateText: string, days: number) {
+  const [year, month, day] = dateText.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
@@ -59,6 +76,8 @@ export async function GET(req: NextRequest) {
         p.domicilio_slot,
         p.domicilio_texto,
         p.fecha_deseada,
+        p.fecha_fin,
+        p.rango_dias,
         p.estatus,
         p.comentario_admin,
         p.created_at,
@@ -181,9 +200,9 @@ export async function POST(req: NextRequest) {
     }
 
     const [catalogRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT categoria
-       FROM catalogo_clientes
-       WHERE id = ?`,
+      `SELECT categoria, usa_rango_fechas, rango_dias
+        FROM catalogo_clientes
+        WHERE id = ?`,
       [catalogo_id]
     );
 
@@ -192,10 +211,26 @@ export async function POST(req: NextRequest) {
     }
 
     const categoria = String(catalogRows[0].categoria ?? '').toLowerCase();
+    const usaRangoFechas = Boolean(catalogRows[0].usa_rango_fechas);
+    const rangoDias = catalogRows[0].rango_dias === null
+      ? null
+      : Number(catalogRows[0].rango_dias);
+    const fechaInicio = toDateOnly(fecha_deseada);
 
-    if (categoria !== 'noticia' && categoria !== 'reportaje') {
+    if (!['noticia', 'reportaje', 'especial'].includes(categoria)) {
       return NextResponse.json(
         { error: 'Este contenido no requiere petición.' },
+        { status: 400 }
+      );
+    }
+
+    if (
+      categoria === 'especial' &&
+      usaRangoFechas &&
+      (!Number.isInteger(rangoDias) || Number(rangoDias) <= 0)
+    ) {
+      return NextResponse.json(
+        { error: 'El catálogo especial no tiene un rango de días válido.' },
         { status: 400 }
       );
     }
@@ -222,6 +257,23 @@ export async function POST(req: NextRequest) {
       domicilioSlotValue = slot;
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)) {
+      return NextResponse.json(
+        { error: 'fecha_deseada debe tener formato YYYY-MM-DD.' },
+        { status: 400 }
+      );
+    }
+
+    const fechaFin =
+      categoria === 'especial' && usaRangoFechas && rangoDias
+        ? addDaysToDateOnly(fechaInicio, rangoDias - 1)
+        : null;
+
+    const rangoDiasPeticion =
+      categoria === 'especial' && usaRangoFechas && rangoDias
+        ? rangoDias
+        : null;
+
     const [insert] = await pool.execute<ResultSetHeader>(
       `
       INSERT INTO peticiones_clientes
@@ -236,9 +288,11 @@ export async function POST(req: NextRequest) {
         domicilio_slot,
         domicilio_texto,
         fecha_deseada,
+        fecha_fin,
+        rango_dias,
         estatus
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
       `,
       [
         clienteId,
@@ -250,7 +304,9 @@ export async function POST(req: NextRequest) {
         usar_domicilio ? 1 : 0,
         domicilioSlotValue,
         domicilioTexto,
-        fecha_deseada,
+        fechaInicio,
+        fechaFin,
+        rangoDiasPeticion,
       ]
     );
 

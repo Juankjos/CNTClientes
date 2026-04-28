@@ -11,8 +11,10 @@ export interface CatalogItem {
   titulo: string;
   descripcion: string | null;
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
+  usa_rango_fechas?: number | boolean;
+  rango_dias?: number | null;
   precio: string | number;
-  imagen: string | null;
+  imagen: string | null; 
   archivo: string | null;
   activo: number;
   fecha_publicacion: string;
@@ -64,6 +66,8 @@ export type CatalogoItem = {
   titulo: string;
   descripcion: string | null;
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
+  usa_rango_fechas: boolean | number;
+  rango_dias: number | null;
   precio: number;
   imagen: string | null;
   archivo: string | null;
@@ -75,8 +79,10 @@ export type CatalogoFormData = {
   titulo: string;
   descripcion: string;
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
+  usa_rango_fechas: boolean;
+  rango_dias: number | null;
   precio: number;
-  imagen: string;       // URL ingresada manualmente
+  imagen: string;
   activo: boolean;
 };
 

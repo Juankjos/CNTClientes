@@ -22,6 +22,28 @@ export default function CatalogDetailPage() {
   const [paying, setPaying]   = useState(false);
   const [method, setMethod]   = useState('transferencia');
   const [msg, setMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const BADGES: Record<string, string> = {
+    reportaje:  'bg-blue-900 text-blue-300',
+    noticia:    'bg-green-900 text-green-300',
+    entrevista: 'bg-purple-900 text-purple-300',
+    especial:   'bg-yellow-900 text-yellow-300',
+  };
+
+  function normalizeCategoria(value: unknown) {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
+  function toBooleanDb(value: unknown) {
+    return value === true || value === 1 || value === '1';
+  }
+
+  function formatDias(value: unknown) {
+    const dias = Number(value);
+
+    if (!Number.isInteger(dias) || dias <= 0) return null;
+
+    return `${dias} día${dias === 1 ? '' : 's'}`;
+  }
 
   useEffect(() => {
     fetch(apiPath(`/api/catalog/${id}`))
@@ -69,8 +91,12 @@ export default function CatalogDetailPage() {
         return;
       }
 
-      const categoria = String(item?.categoria ?? '').toLowerCase();
-      const requierePeticion = categoria === 'noticia' || categoria === 'reportaje';
+      const categoria = normalizeCategoria(item?.categoria);
+      const requierePeticion =
+        categoria === 'noticia' ||
+        categoria === 'reportaje' ||
+        categoria === 'entrevista' ||
+        categoria === 'especial';
 
       await Swal.fire({
         title: 'Pago registrado',
@@ -105,6 +131,15 @@ export default function CatalogDetailPage() {
     </div>
   );
 
+  const categoria = normalizeCategoria(item.categoria);
+  const usaRangoFechas = toBooleanDb(item.usa_rango_fechas);
+  const rangoDiasTexto = formatDias(item.rango_dias);
+
+  const isEspecialConRango =
+    categoria === 'especial' &&
+    usaRangoFechas &&
+    Boolean(rangoDiasTexto);
+
   if (!item) return (
     <div className="text-center py-24">
       <p className="text-5xl mb-4">🔍</p>
@@ -138,8 +173,12 @@ export default function CatalogDetailPage() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className={`px-2.5 py-1 rounded text-xs uppercase tracking-wider font-semibold ${BADGES[item.categoria] ?? 'bg-gray-800 text-gray-300'}`}>
-            {item.categoria}
+          <span
+            className={`px-2.5 py-1 rounded text-xs uppercase tracking-wider font-semibold ${
+              BADGES[categoria] ?? 'bg-gray-800 text-gray-300'
+            }`}
+          >
+            {categoria}
           </span>
           {/* <span className="text-gray-600 text-xs">
             {new Date(item.fecha_publicacion).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -148,6 +187,22 @@ export default function CatalogDetailPage() {
         <h1 className="font-display text-3xl text-white mb-3">{item.titulo}</h1>
         {item.descripcion && (
           <p className="text-gray-400 leading-relaxed">{item.descripcion}</p>
+        )}
+        {isEspecialConRango && (
+          <div className="mt-5 rounded-xl border border-blue-900/60 bg-blue-950/20 p-4">
+            <p className="text-xs text-blue-300 uppercase tracking-widest mb-1">
+              Rango de fechas incluido
+            </p>
+
+            <p className="text-white font-semibold">
+              Cubre {rangoDiasTexto} consecutivo
+              {Number(item.rango_dias) === 1 ? '' : 's'}.
+            </p>
+
+            <p className="text-sm text-gray-400 mt-1">
+              Al llenar el formulario, elegirás una fecha inicial y el sistema calculará automáticamente la fecha final.
+            </p>
+          </div>
         )}
       </div>
 
@@ -162,6 +217,14 @@ export default function CatalogDetailPage() {
                 : `$${Number(item.precio).toFixed(2)} MXN`}
             </p>
           </div>
+
+          {isEspecialConRango && (
+              <div className="mb-4 rounded-lg border border-blue-900/60 bg-blue-950/20 px-4 py-3">
+                <p className="text-sm text-white">
+                  Incluye selección de rango de: <span className="font-semibold">{rangoDiasTexto}</span>
+                </p>
+              </div>
+          )}
 
           {item.ya_pagado > 0 && (
             <span className="px-3 py-1.5 bg-green-900/50 text-green-400 border border-green-800 rounded-lg text-sm">

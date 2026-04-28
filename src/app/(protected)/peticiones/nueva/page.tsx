@@ -37,6 +37,9 @@ export default function NuevaPeticionPage() {
   const [hasPeticion, setHasPeticion] = useState(false);
   const [catalogoCategoria, setCatalogoCategoria] = useState('');
 
+  const [usaRangoFechas, setUsaRangoFechas] = useState(false);
+  const [rangoDias, setRangoDias] = useState<number | null>(null);
+
   useEffect(() => {
     async function load() {
       try {
@@ -51,7 +54,13 @@ export default function NuevaPeticionPage() {
         setProfile(profileData);
         setPaymentStatus(pagoData.estatus ?? null);
         setHasPeticion(Boolean(pagoData.tiene_peticion));
-        setCatalogoCategoria(pagoData.categoria ?? '');
+        setCatalogoCategoria(normalizeCategoria(pagoData.categoria));
+        setUsaRangoFechas(toBooleanDb(pagoData.usa_rango_fechas));
+        setRangoDias(
+          pagoData.rango_dias === null || pagoData.rango_dias === undefined
+            ? null
+            : Number(pagoData.rango_dias)
+        );
 
         if (pagoData.estatus !== 'pagado') {
           router.replace('/peticiones/referencia');
@@ -82,6 +91,14 @@ export default function NuevaPeticionPage() {
     load();
   }, [pagoId, catalogoId, router]);
 
+  function normalizeCategoria(value: unknown) {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
+  function toBooleanDb(value: unknown) {
+    return value === true || value === 1 || value === '1';
+  }
+
   const domicilios = useMemo<AddressOption[]>(() => {
     if (!profile) return [];
 
@@ -93,6 +110,17 @@ export default function NuevaPeticionPage() {
       }))
       .filter((d) => Boolean(d.value));
   }, [profile]);
+
+  const isEspecialConRango =
+    normalizeCategoria(catalogoCategoria) === 'especial' &&
+    usaRangoFechas &&
+    Number(rangoDias) > 0;
+
+  const fechaFinCalculada =
+    isEspecialConRango && fechaDeseada
+      ? addDays(fechaDeseada, Number(rangoDias) - 1)
+      : null;
+
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -113,17 +141,38 @@ export default function NuevaPeticionPage() {
     }
 
     if (!fechaDeseada) {
-  await Swal.fire('Falta información', 'Debes elegir fecha y hora deseada.', 'warning');
-  return;
-}
+      await Swal.fire(
+        'Falta información',
+        isEspecialConRango
+          ? 'Debes elegir la fecha inicial del rango.'
+          : 'Debes elegir fecha y hora deseada.',
+        'warning'
+      );
+      return;
+    }
 
-    if (fechaDeseada.getTime() < Date.now()) {
+    if (isEspecialConRango) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const selected = new Date(fechaDeseada);
+      selected.setHours(0, 0, 0, 0);
+
+      if (selected.getTime() < today.getTime()) {
         await Swal.fire(
-            'Fecha inválida',
-            'Debes elegir una fecha y hora posterior al momento actual.',
-            'warning'
+          'Fecha inválida',
+          'Debes elegir una fecha inicial de hoy o posterior.',
+          'warning'
         );
         return;
+      }
+    } else if (fechaDeseada.getTime() < Date.now()) {
+      await Swal.fire(
+        'Fecha inválida',
+        'Debes elegir una fecha y hora posterior al momento actual.',
+        'warning'
+      );
+      return;
     }
 
     const confirm = await Swal.fire({
@@ -154,7 +203,9 @@ export default function NuevaPeticionPage() {
           descripcion: descripcion.trim(),
           usar_domicilio: usarDomicilio,
           domicilio_slot: usarDomicilio ? Number(domicilioSlot) : null,
-          fecha_deseada: toSqlDateTime(fechaDeseada),
+          fecha_deseada: isEspecialConRango
+            ? toSqlDateOnly(fechaDeseada)
+            : toSqlDateTime(fechaDeseada),
         }),
       });
 
@@ -215,6 +266,65 @@ export default function NuevaPeticionPage() {
         return cleanPart.charAt(0).toUpperCase() + cleanPart.slice(1);
       })
       .join(' / ');
+  }
+
+  function toSqlDateOnly(date: Date) {
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function addDays(date: Date, days: number) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
+  function startOfDay(date: Date) {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  }
+
+  function isSameDay(a: Date, b: Date) {
+    return startOfDay(a).getTime() === startOfDay(b).getTime();
+  }
+
+  function isInsideDateRange(day: Date, start: Date, end: Date) {
+    const current = startOfDay(day).getTime();
+    const rangeStart = startOfDay(start).getTime();
+    const rangeEnd = startOfDay(end).getTime();
+
+    return current >= rangeStart && current <= rangeEnd;
+  }
+
+  function getRangeDayClassName(day: Date) {
+    if (!isEspecialConRango || !fechaDeseada || !fechaFinCalculada) {
+      return '';
+    }
+
+    if (!isInsideDateRange(day, fechaDeseada, fechaFinCalculada)) {
+      return '';
+    }
+
+    const isStart = isSameDay(day, fechaDeseada);
+    const isEnd = isSameDay(day, fechaFinCalculada);
+
+    if (isStart && isEnd) return 'cnt-special-range-single';
+    if (isStart) return 'cnt-special-range-start';
+    if (isEnd) return 'cnt-special-range-end';
+
+    return 'cnt-special-range-middle';
+  }
+
+  function formatFechaSolo(value: Date | null) {
+    if (!value) return '';
+
+    return new Intl.DateTimeFormat('es-MX', {
+      dateStyle: 'medium',
+    }).format(value);
   }
 
   const categoriaLabel = formatCategoria(catalogoCategoria);
@@ -316,38 +426,90 @@ export default function NuevaPeticionPage() {
 
         <div>
           <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-            Elegir fecha y hora deseada
+            {isEspecialConRango ? 'Elegir fechas deseadas' : 'Elegir fecha y hora deseada'}
+
             <span className="block normal-case tracking-normal text-gray-500 mt-1">
-              La hora seleccionada se mostrará en formato AM/PM.
+              {isEspecialConRango
+                ? `Selecciona la fecha inicial. Este especial cubrirá ${rangoDias} día${Number(rangoDias) === 1 ? '' : 's'}.`
+                : 'La hora seleccionada se mostrará en formato AM/PM.'}
             </span>
           </label>
+
           <DatePicker
-                id="fecha_deseada"
-                selected={fechaDeseada}
-                onChange={(date: Date | null) => setFechaDeseada(date)}
-                showTimeSelect
-                locale="es"
-                minDate={new Date()}
-                filterTime={(time) => time.getTime() >= Date.now()}
-                timeIntervals={30}
-                timeCaption="Hora"
-                dateFormat="dd/MM/yyyy h:mm aa"
-                placeholderText="Selecciona fecha y hora"
-                calendarClassName="cnt-datepicker-calendar"
-                popperClassName="cnt-datepicker-popper"
-                wrapperClassName="w-full"
-                className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red cursor-pointer"
-            />
-            {fechaDeseada && (
+            id="fecha_deseada"
+            selected={fechaDeseada}
+            onChange={(date: Date | null) => {
+              if (!date) {
+                setFechaDeseada(null);
+                return;
+              }
+
+              if (isEspecialConRango) {
+                const onlyDate = new Date(date);
+                onlyDate.setHours(0, 0, 0, 0);
+                setFechaDeseada(onlyDate);
+                return;
+              }
+
+              setFechaDeseada(date);
+            }}
+            showTimeSelect={!isEspecialConRango}
+            locale="es"
+            minDate={new Date()}
+            filterTime={
+              isEspecialConRango
+                ? undefined
+                : (time: Date) => time.getTime() >= Date.now()
+            }
+            timeIntervals={30}
+            timeCaption="Hora"
+            dateFormat={isEspecialConRango ? 'dd/MM/yyyy' : 'dd/MM/yyyy h:mm aa'}
+            placeholderText={
+              isEspecialConRango
+                ? 'Selecciona fecha inicial'
+                : 'Selecciona fecha y hora'
+            }
+            dayClassName={isEspecialConRango ? getRangeDayClassName : undefined}
+            calendarClassName="cnt-datepicker-calendar"
+            popperClassName="cnt-datepicker-popper"
+            wrapperClassName="w-full"
+            className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red cursor-pointer"
+          />
+
+          {fechaDeseada && (
             <div className="mt-3 rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3">
-                <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">
-                Fecha seleccionada
-                </p>
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">
+                {isEspecialConRango ? 'Rango seleccionado' : 'Fecha seleccionada'}
+              </p>
+
+              {isEspecialConRango ? (
+                <div className="space-y-1">
+                  <p className="text-white">
+                    Inicio:{' '}
+                    <span className="font-semibold">
+                      {formatFechaSolo(fechaDeseada)}
+                    </span>
+                  </p>
+
+                  <p className="text-white">
+                    Fin:{' '}
+                    <span className="font-semibold">
+                      {formatFechaSolo(fechaFinCalculada)}
+                    </span>
+                  </p>
+
+                  <p className="text-xs text-gray-500">
+                    Se usarán {rangoDias} día{Number(rangoDias) === 1 ? '' : 's'} consecutivo
+                    {Number(rangoDias) === 1 ? '' : 's'} contando desde la fecha inicial.
+                  </p>
+                </div>
+              ) : (
                 <p className="text-lg font-semibold text-white">
-                {formatFechaAmPm(fechaDeseada)}
+                  {formatFechaAmPm(fechaDeseada)}
                 </p>
+              )}
             </div>
-            )}
+          )}
         </div>
 
         <button

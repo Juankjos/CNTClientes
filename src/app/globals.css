@@ -114,3 +114,41 @@
 .cnt-datepicker-calendar .react-datepicker__navigation-icon::before {
     border-color: #d1d5db;
 }
+
+.react-datepicker__day.cnt-special-range-middle {
+    background: rgba(37, 99, 235, 0.35);
+    color: #ffffff;
+    border-radius: 0;
+}
+
+.react-datepicker__day.cnt-special-range-start {
+    background: rgba(37, 99, 235, 0.85);
+    color: #ffffff;
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.react-datepicker__day.cnt-special-range-end {
+    background: rgba(37, 99, 235, 0.85);
+    color: #ffffff;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
+}
+
+.react-datepicker__day.cnt-special-range-single {
+    background: rgba(37, 99, 235, 0.85);
+    color: #ffffff;
+    border-radius: 999px;
+}
+
+.react-datepicker__day.cnt-special-range-middle:hover,
+.react-datepicker__day.cnt-special-range-start:hover,
+.react-datepicker__day.cnt-special-range-end:hover,
+.react-datepicker__day.cnt-special-range-single:hover {
+    background: rgba(37, 99, 235, 1);
+    color: #ffffff;
+}

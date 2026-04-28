@@ -12,6 +12,8 @@ const emptyForm = (): CatalogoFormData => ({
   titulo: '',
   descripcion: '',
   categoria: 'reportaje',
+  usa_rango_fechas: false,
+  rango_dias: null,
   precio: 0,
   imagen: '',
   activo: true,
@@ -19,6 +21,28 @@ const emptyForm = (): CatalogoFormData => ({
 
 const formatCategoria = (categoria: string) =>
   categoria.charAt(0).toUpperCase() + categoria.slice(1);
+
+type CatalogoCategoria = CatalogoFormData['categoria'];
+
+const normalizeCategoria = (value: unknown): CatalogoCategoria => {
+  const categoria = String(value ?? '').trim().toLowerCase();
+
+  return CATEGORIAS.includes(categoria as CatalogoCategoria)
+    ? (categoria as CatalogoCategoria)
+    : 'reportaje';
+};
+
+const toBooleanDb = (value: unknown) => {
+  return value === true || value === 1 || value === '1';
+};
+
+const toNullableNumber = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return null;
+
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) ? numberValue : null;
+};
 
 export default function AdminCatalogPage() {
   const [items, setItems] = useState<CatalogoItem[]>([]);
@@ -82,16 +106,49 @@ export default function AdminCatalogPage() {
     setPreview('');
     setImageFile(null);
   };
+  
+  const isEspecial = normalizeCategoria(form.categoria) === 'especial';
+
+  const handleCategoriaChange = (value: unknown) => {
+    const categoria = normalizeCategoria(value);
+    const isNextEspecial = categoria === 'especial';
+
+    setForm((f) => ({
+      ...f,
+      categoria,
+      usa_rango_fechas: isNextEspecial ? f.usa_rango_fechas : false,
+      rango_dias: isNextEspecial ? f.rango_dias : null,
+    }));
+  };
 
   const handleSubmit = async () => {
     try {
       setLoading(true);
       setMsg(null);
 
+      if (
+        form.categoria === 'especial' &&
+        form.usa_rango_fechas &&
+        (!Number.isInteger(form.rango_dias) || Number(form.rango_dias) <= 0)
+      ) {
+        setMsg({
+          text: 'Debes capturar un total de días válido para el rango de fechas.',
+          type: 'error',
+        });
+        setLoading(false);
+        return;
+      }
+
       const uploadedImageUrl = await uploadSelectedImage();
 
       const payload = {
         ...form,
+        usa_rango_fechas:
+          form.categoria === 'especial' ? Boolean(form.usa_rango_fechas) : false,
+        rango_dias:
+          form.categoria === 'especial' && form.usa_rango_fechas
+            ? Number(form.rango_dias)
+            : null,
         imagen: uploadedImageUrl || null,
       };
 
@@ -133,13 +190,18 @@ export default function AdminCatalogPage() {
     setImageFile(null);
     setMsg(null);
 
+    const categoria = normalizeCategoria(item.categoria);
+    const isItemEspecial = categoria === 'especial';
+
     setForm({
       titulo: item.titulo,
       descripcion: item.descripcion ?? '',
-      categoria: item.categoria,
+      categoria,
+      usa_rango_fechas: isItemEspecial ? toBooleanDb(item.usa_rango_fechas) : false,
+      rango_dias: isItemEspecial ? toNullableNumber(item.rango_dias) : null,
       precio: Number(item.precio),
       imagen: item.imagen ?? '',
-      activo: Boolean(item.activo),
+      activo: toBooleanDb(item.activo),
     });
 
     setPreview(item.imagen ?? '');
@@ -219,9 +281,7 @@ export default function AdminCatalogPage() {
                 </label>
                 <select
                   value={form.categoria}
-                  onChange={e =>
-                    setForm(f => ({ ...f, categoria: e.target.value as typeof form.categoria }))
-                  }
+                  onChange={(e) => handleCategoriaChange(e.target.value)}
                   className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors cursor-pointer"
                 >
                   {CATEGORIAS.map(categoria => (
@@ -247,6 +307,65 @@ export default function AdminCatalogPage() {
                 />
               </div>
             </div>
+
+            {isEspecial && (
+              <div className="rounded-xl border border-blue-900/60 bg-blue-950/20 p-4 space-y-4">
+                <label
+                  htmlFor="usa_rango_fechas"
+                  className="flex items-center justify-between gap-4 cursor-pointer"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      ¿Agregar rango de fechas?
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Si se habilita, el cliente elegirá una fecha inicial y el sistema calculará la fecha final según el total de días.
+                    </p>
+                  </div>
+
+                  <input
+                    id="usa_rango_fechas"
+                    type="checkbox"
+                    checked={form.usa_rango_fechas}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        usa_rango_fechas: e.target.checked,
+                        rango_dias: e.target.checked ? f.rango_dias ?? 1 : null,
+                      }))
+                    }
+                    className="h-4 w-4 accent-red-600 cursor-pointer"
+                  />
+                </label>
+
+                {form.usa_rango_fechas && (
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                      Total de días
+                    </label>
+
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={form.rango_dias ?? ''}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          rango_dias: e.target.value ? Number(e.target.value) : null,
+                        }))
+                      }
+                      placeholder="Ej. 3"
+                      className="w-full bg-cnt-dark border border-cnt-border text-white placeholder-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cnt-red transition-colors"
+                    />
+
+                    <p className="text-xs text-gray-500 mt-2">
+                      Ejemplo: si el cliente elige lunes y el total es 3 días, el rango será lunes a miércoles.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
@@ -376,6 +495,13 @@ export default function AdminCatalogPage() {
                     <p className="text-sm text-gray-500">
                       {formatCategoria(item.categoria)} · ${Number(item.precio).toFixed(2)}
                     </p>
+                    {normalizeCategoria(item.categoria) === 'especial' && (
+                      <p className="text-xs text-blue-300 mt-1">
+                        {toBooleanDb(item.usa_rango_fechas) && Number(item.rango_dias) > 0
+                          ? `Rango de fechas: ${Number(item.rango_dias)} día${Number(item.rango_dias) === 1 ? '' : 's'}`
+                          : 'Especial sin rango de fechas'}
+                      </p>
+                    )}
                     <span
                       className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${
                         item.activo

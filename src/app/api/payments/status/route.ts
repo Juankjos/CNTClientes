@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
       p.estatus,
       c.titulo AS servicio,
       c.categoria,
+      c.usa_rango_fechas,
+      c.rango_dias,
       pc.id AS peticion_id
     FROM pagos_clientes p
     INNER JOIN clientes_clientes cc
@@ -55,7 +57,15 @@ export async function GET(req: NextRequest) {
     catalogo_id: row.catalogo_id,
     estatus: row.estatus,
     servicio: row.servicio,
-    categoria: row.categoria,
+    categoria: String(row.categoria ?? '').toLowerCase(),
+    usa_rango_fechas:
+      row.usa_rango_fechas === true ||
+      row.usa_rango_fechas === 1 ||
+      row.usa_rango_fechas === '1',
+    rango_dias:
+      row.rango_dias === null || row.rango_dias === undefined
+        ? null
+        : Number(row.rango_dias),
     peticion_id: row.peticion_id,
     tiene_peticion: Boolean(row.peticion_id),
   });
