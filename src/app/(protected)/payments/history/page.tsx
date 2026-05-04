@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiPath } from '@/lib/api-path';
 import Image from 'next/image';
+import { formatMoney } from '@/lib/formatters';
 
 const ESTATUS_STYLE: Record<string, string> = {
   pendiente: 'bg-yellow-900/50 text-yellow-300 border-yellow-800',
@@ -130,7 +131,7 @@ export default function PaymentHistoryPage() {
 
               <div className="text-right shrink-0">
                 <p className="text-white font-semibold text-sm">
-                  ${Number(pago.monto).toFixed(2)}
+                  {formatMoney(pago.monto)}
                 </p>
                 <span
                   className={`inline-block mt-1 px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider ${

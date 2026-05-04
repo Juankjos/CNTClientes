@@ -16,6 +16,10 @@ const clean = (value: unknown): string | null => {
   return text.length ? text : null;
 };
 
+const toBoolDb = (value: unknown) => {
+  return value === true || value === 1 || value === '1';
+};
+
 const formatDateValue = (value: unknown): string | null => {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -258,9 +262,8 @@ export async function PATCH(
     const isAcceptingNow =
       String(current.estatus) !== 'aceptada' && nextEstatus === 'aceptada';
 
-    const isEspecialConRango =
-      String(current.catalogo_categoria ?? current.categoria).toLowerCase() === 'especial' &&
-      Boolean(current.catalogo_usa_rango_fechas) &&
+    const peticionTieneRango =
+      toBoolDb(current.catalogo_usa_rango_fechas) &&
       Number(current.catalogo_rango_dias) > 0;
 
     if (updates.length) {
@@ -291,7 +294,7 @@ export async function PATCH(
         );
       }
 
-      if (isAcceptingNow && !isEspecialConRango) {
+      if (isAcceptingNow && !peticionTieneRango) {
         // Ajusta los nombres de columnas según tu tabla real de noticias.
         // ---------------------------------------------------------
         await pool.execute(

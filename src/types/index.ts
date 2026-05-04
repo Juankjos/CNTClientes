@@ -13,8 +13,18 @@ export interface CatalogItem {
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
   usa_rango_fechas?: number | boolean;
   rango_dias?: number | null;
+
+  bloquea_sabado?: number | boolean;
+  bloquea_domingo?: number | boolean;
+  bloquea_dias_festivos?: number | boolean;
+
+  incluye_fines_semana?: number | boolean;
+  incluye_dias_festivos?: number | boolean;
+  bloquea_fechas_personalizadas?: number | boolean;
+  fechas_bloqueadas_json?: string[] | string | null;
+
   precio: string | number;
-  imagen: string | null; 
+  imagen: string | null;
   archivo: string | null;
   activo: number;
   fecha_publicacion: string;
@@ -60,7 +70,6 @@ export interface LogEntry {
 }
 
 // Agrega esto al archivo existente
-
 export type CatalogoItem = {
   id: number;
   titulo: string;
@@ -68,6 +77,16 @@ export type CatalogoItem = {
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
   usa_rango_fechas: boolean | number;
   rango_dias: number | null;
+
+  bloquea_sabado: boolean | number;
+  bloquea_domingo: boolean | number;
+  bloquea_dias_festivos: boolean | number;
+
+  incluye_fines_semana: boolean | number;
+  incluye_dias_festivos: boolean | number;
+  bloquea_fechas_personalizadas: boolean | number;
+  fechas_bloqueadas_json: string[] | string | null;
+
   precio: number;
   imagen: string | null;
   archivo: string | null;
@@ -81,6 +100,16 @@ export type CatalogoFormData = {
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
   usa_rango_fechas: boolean;
   rango_dias: number | null;
+
+  bloquea_sabado: boolean;
+  bloquea_domingo: boolean;
+  bloquea_dias_festivos: boolean;
+
+  incluye_fines_semana: boolean;
+  incluye_dias_festivos: boolean;
+  bloquea_fechas_personalizadas: boolean;
+  fechas_bloqueadas: string[];
+
   precio: number;
   imagen: string;
   activo: boolean;

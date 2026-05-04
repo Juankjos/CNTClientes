@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { apiPath } from '@/lib/api-path';
+import { formatMoney } from '@/lib/formatters';
 
 const CATEGORIAS = ['', 'reportaje', 'noticia', 'entrevista', 'especial'] as const;
 const LABELS: Record<string, string> = {
@@ -176,7 +177,7 @@ export default function CatalogPage() {
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-white font-semibold text-sm">
-                    {Number(item.precio) === 0 ? 'Gratuito' : `$${Number(item.precio).toFixed(2)} MXN`}
+                    {Number(item.precio) === 0 ? 'Gratuito' : `$${formatMoney(item.precio)} MXN`}
                   </span>
                   {/* <span className="text-gray-600 text-xs">
                     {new Date(item.fecha_publicacion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}

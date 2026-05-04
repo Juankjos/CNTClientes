@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPath } from '@/lib/api-path';
 import Image from 'next/image';
+import { formatMoney } from '@/lib/formatters';
 
 const ESTATUS_STYLE: Record<string, string> = {
   pendiente:   'bg-yellow-900/50 text-yellow-300 border-yellow-800',
@@ -127,7 +128,10 @@ export default function PaymentDetailPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-cnt-dark rounded-lg p-4">
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Monto</p>
-              <p className="text-white font-semibold text-lg">${Number(pago.monto).toFixed(2)} <span className="text-gray-500 text-sm font-normal">MXN</span></p>
+              <p className="text-white font-semibold text-lg">
+                ${formatMoney(pago.monto)}{' '}
+                <span className="text-gray-500 text-sm font-normal">MXN</span>
+              </p>
             </div>
             <div className="bg-cnt-dark rounded-lg p-4">
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Método</p>
@@ -172,11 +176,11 @@ export default function PaymentDetailPage() {
         </div>
       </div>
 
-      <div className="mt-6 text-center">
+      {/* <div className="mt-6 text-center">
         <Link href="/catalog" className="text-gray-500 hover:text-white text-sm transition-colors">
           ← Volver al catálogo
         </Link>
-      </div>
+      </div> */}
     </div>
   );
 }

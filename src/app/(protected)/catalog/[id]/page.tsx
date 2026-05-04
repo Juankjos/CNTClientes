@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import Link from 'next/link';
 import { apiPath } from '@/lib/api-path';
 import Image from 'next/image';
+import { formatMoney } from '@/lib/formatters';
 
 const BADGES: Record<string, string> = {
   reportaje:  'bg-blue-900 text-blue-300',
@@ -43,6 +44,73 @@ export default function CatalogDetailPage() {
     if (!Number.isInteger(dias) || dias <= 0) return null;
 
     return `${dias} día${dias === 1 ? '' : 's'}`;
+  }
+
+  function parseFechasBloqueadas(value: unknown): string[] {
+    let parsed = value;
+
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return [];
+      }
+    }
+
+    if (!Array.isArray(parsed)) return [];
+
+    return Array.from(
+      new Set(
+        parsed
+          .map((item) => String(item).trim())
+          .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+      )
+    ).sort();
+  }
+
+  function formatFechaSolo(value: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    const isValidDate =
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day;
+
+    if (!isValidDate) return value;
+
+    const parts = new Intl.DateTimeFormat('es-MX', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).formatToParts(date);
+
+    const dia = parts.find((part) => part.type === 'day')?.value;
+    const mes = parts.find((part) => part.type === 'month')?.value;
+    const anio = parts.find((part) => part.type === 'year')?.value;
+
+    if (!dia || !mes || !anio) return value;
+
+    const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1);
+
+    return `${dia} de ${mesCapitalizado} del ${anio}`;
+  }
+
+  function formatDiasBloqueados({
+    bloqueaSabado,
+    bloqueaDomingo,
+  }: {
+    bloqueaSabado: boolean;
+    bloqueaDomingo: boolean;
+  }) {
+    const dias = [
+      bloqueaSabado ? 'Sábados' : null,
+      bloqueaDomingo ? 'Domingos' : null,
+    ].filter(Boolean);
+
+    return dias.join(' y ');
   }
 
   useEffect(() => {
@@ -131,22 +199,40 @@ export default function CatalogDetailPage() {
     </div>
   );
 
-  const categoria = normalizeCategoria(item.categoria);
-  const usaRangoFechas = toBooleanDb(item.usa_rango_fechas);
-  const rangoDiasTexto = formatDias(item.rango_dias);
-
-  const isEspecialConRango =
-    categoria === 'especial' &&
-    usaRangoFechas &&
-    Boolean(rangoDiasTexto);
-
   if (!item) return (
     <div className="text-center py-24">
       <p className="text-5xl mb-4">🔍</p>
       <p className="text-gray-400 mb-4">Contenido no encontrado</p>
-      <Link href="/catalog" className="text-cnt-red hover:underline text-sm">← Volver al catálogo</Link>
+      <Link href="/catalog" className="text-cnt-red hover:underline text-sm">
+        ← Volver al catálogo
+      </Link>
     </div>
   );
+
+  const categoria = normalizeCategoria(item.categoria);
+  const usaRangoFechas = toBooleanDb(item.usa_rango_fechas);
+  const rangoDiasTexto = formatDias(item.rango_dias);
+
+  const bloqueaSabado = toBooleanDb(item.bloquea_sabado);
+  const bloqueaDomingo = toBooleanDb(item.bloquea_domingo);
+  const bloqueaDiasFestivos = toBooleanDb(item.bloquea_dias_festivos);
+  const bloqueaFechasPersonalizadas = toBooleanDb(item.bloquea_fechas_personalizadas);
+  const fechasBloqueadas = parseFechasBloqueadas(item.fechas_bloqueadas_json);
+
+  const diasFinSemanaBloqueados = formatDiasBloqueados({
+    bloqueaSabado,
+    bloqueaDomingo,
+  });
+
+  const tieneRestriccionesRango =
+    bloqueaSabado ||
+    bloqueaDomingo ||
+    bloqueaDiasFestivos ||
+    (bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0);
+
+  const itemTieneRango =
+    usaRangoFechas &&
+    Boolean(rangoDiasTexto);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -188,20 +274,74 @@ export default function CatalogDetailPage() {
         {item.descripcion && (
           <p className="text-gray-400 leading-relaxed">{item.descripcion}</p>
         )}
-        {isEspecialConRango && (
+        {itemTieneRango && (
           <div className="mt-5 rounded-xl border border-blue-900/60 bg-blue-950/20 p-4">
             <p className="text-xs text-blue-300 uppercase tracking-widest mb-1">
               Rango de fechas incluido
             </p>
 
             <p className="text-white font-semibold">
-              Cubre {rangoDiasTexto} consecutivo
-              {Number(item.rango_dias) === 1 ? '' : 's'}.
+              Cubre {rangoDiasTexto}.
             </p>
 
             <p className="text-sm text-gray-400 mt-1">
               Al llenar el formulario, elegirás una fecha inicial y el sistema calculará automáticamente la fecha final.
             </p>
+
+            {tieneRestriccionesRango && (
+              <div className="mt-4 rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3">
+                <p className="text-xs text-yellow-300 uppercase tracking-widest mb-2">
+                  El paquete omite las siguientes fechas:
+                </p>
+
+                <div className="space-y-3 text-sm">
+                  {(bloqueaSabado || bloqueaDomingo) && (
+                    <div>
+                      <p className="text-white font-semibold">
+                        Se omiten los días:
+                      </p>
+                      <p className="text-gray-400">
+                        {diasFinSemanaBloqueados}
+                      </p>
+                    </div>
+                  )}
+
+                  {bloqueaDiasFestivos && (
+                    <div>
+                      <p className="text-white font-semibold">
+                        Se omiten días festivos:
+                      </p>
+                      <p className="text-gray-400">
+                        1 de enero, 2 de febrero, 16 de marzo, 1 de mayo, 16 de septiembre, 20 de noviembre y 25 de diciembre.
+                      </p>
+                    </div>
+                  )}
+
+                  {bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0 && (
+                    <div>
+                      <p className="text-white font-semibold">
+                        Se omiten las siguientes fechas:
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {fechasBloqueadas.map((fecha) => (
+                          <span
+                            key={fecha}
+                            className="rounded-full border border-yellow-800/70 bg-cnt-dark px-3 py-1 text-xs text-yellow-200"
+                          >
+                            {formatFechaSolo(fecha)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-gray-500 mt-3">
+                  Las fechas no incluidas se omiten y el rango se extiende hasta completar los días aplicables.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -212,16 +352,16 @@ export default function CatalogDetailPage() {
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Precio</p>
             <p className="font-display text-3xl text-white">
-              {item.precio === 0 || item.precio === '0.00'
+              {Number(item.precio) === 0
                 ? <span className="text-green-400">Gratuito</span>
-                : `$${Number(item.precio).toFixed(2)} MXN`}
+                : `$${formatMoney(item.precio)} MXN`}
             </p>
           </div>
 
-          {isEspecialConRango && (
-              <div className="mb-4 rounded-lg border border-blue-900/60 bg-blue-950/20 px-4 py-3">
+          {itemTieneRango && (
+              <div className="mb-4 rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3">
                 <p className="text-sm text-white">
-                  Incluye selección de rango de: <span className="font-semibold">{rangoDiasTexto}</span>
+                  Total de días aplicables: <span className="font-semibold">{rangoDiasTexto}</span>
                 </p>
               </div>
           )}
@@ -270,11 +410,11 @@ export default function CatalogDetailPage() {
             ) : item.ya_pagado > 0 ? (
               Number(item.precio) === 0
                 ? 'Acceder nuevamente'
-                : `Comprar nuevamente por $${Number(item.precio).toFixed(2)} MXN`
+                : `Comprar nuevamente por $${formatMoney(item.precio)} MXN`
             ) : Number(item.precio) === 0 ? (
-              'Ir a Formulario'
+              'Obtener e ingresar a Formulario'
             ) : (
-              `Ir al pago $${Number(item.precio).toFixed(2)} MXN`
+              `Ir al pago $${formatMoney(item.precio)} MXN`
             )}
           </button>
         </div>

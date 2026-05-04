@@ -31,6 +31,13 @@ export async function GET(req: NextRequest) {
       c.categoria,
       c.usa_rango_fechas,
       c.rango_dias,
+      c.incluye_fines_semana,
+      c.incluye_dias_festivos,
+      c.bloquea_sabado,
+      c.bloquea_domingo,
+      c.bloquea_dias_festivos,
+      c.bloquea_fechas_personalizadas,
+      c.fechas_bloqueadas_json,
       pc.id AS peticion_id
     FROM pagos_clientes p
     INNER JOIN clientes_clientes cc
@@ -46,26 +53,69 @@ export async function GET(req: NextRequest) {
     [pagoId, user.id]
   );
 
+  function parseJsonDates(value: unknown): string[] {
+    let parsed = value;
+
+    if (Buffer.isBuffer(value)) {
+      parsed = value.toString('utf8');
+    }
+
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return [];
+      }
+    }
+
+    if (!Array.isArray(parsed)) return [];
+
+    return Array.from(
+      new Set(
+        parsed
+          .map((item) => String(item).trim())
+          .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+      )
+    ).sort();
+  }
+
+  function toBool(value: unknown, fallback = false) {
+    if (value === undefined || value === null) return fallback;
+
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+
+    const text = String(value).trim().toLowerCase();
+
+    return text === '1' || text === 'true' || text === 'sí' || text === 'si';
+  }
+
   if (!rows.length) {
     return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
   }
 
   const row = rows[0];
+  const fechasBloqueadas = parseJsonDates(row.fechas_bloqueadas_json);
 
   return NextResponse.json({
     id: row.id,
     catalogo_id: row.catalogo_id,
     estatus: row.estatus,
     servicio: row.servicio,
-    categoria: String(row.categoria ?? '').toLowerCase(),
-    usa_rango_fechas:
-      row.usa_rango_fechas === true ||
-      row.usa_rango_fechas === 1 ||
-      row.usa_rango_fechas === '1',
-    rango_dias:
-      row.rango_dias === null || row.rango_dias === undefined
-        ? null
-        : Number(row.rango_dias),
+    categoria: row.categoria,
+
+    usa_rango_fechas: toBool(row.usa_rango_fechas),
+    rango_dias: row.rango_dias === null ? null : Number(row.rango_dias),
+
+    incluye_fines_semana: toBool(row.incluye_fines_semana, true),
+    incluye_dias_festivos: toBool(row.incluye_dias_festivos, true),
+    bloquea_sabado: toBool(row.bloquea_sabado),
+    bloquea_domingo: toBool(row.bloquea_domingo),
+    bloquea_dias_festivos: toBool(row.bloquea_dias_festivos),
+
+    bloquea_fechas_personalizadas: toBool(row.bloquea_fechas_personalizadas),
+    fechas_bloqueadas: fechasBloqueadas,
+
     peticion_id: row.peticion_id,
     tiene_peticion: Boolean(row.peticion_id),
   });

@@ -16,6 +16,16 @@ type AddressOption = {
   value: string;
 };
 
+const FESTIVOS_MX_FIJOS = new Set([
+  '01-01',
+  '02-02',
+  '03-16',
+  '05-01',
+  '09-16',
+  '11-20',
+  '12-25',
+]);
+
 export default function NuevaPeticionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -40,6 +50,12 @@ export default function NuevaPeticionPage() {
   const [usaRangoFechas, setUsaRangoFechas] = useState(false);
   const [rangoDias, setRangoDias] = useState<number | null>(null);
 
+  const [bloqueaSabado, setBloqueaSabado] = useState(false);
+  const [bloqueaDomingo, setBloqueaDomingo] = useState(false);
+  const [bloqueaDiasFestivos, setBloqueaDiasFestivos] = useState(false);
+  const [bloqueaFechasPersonalizadas, setBloqueaFechasPersonalizadas] = useState(false);
+  const [fechasBloqueadas, setFechasBloqueadas] = useState<string[]>([]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -60,6 +76,15 @@ export default function NuevaPeticionPage() {
           pagoData.rango_dias === null || pagoData.rango_dias === undefined
             ? null
             : Number(pagoData.rango_dias)
+        );
+        setBloqueaSabado(toBooleanDb(pagoData.bloquea_sabado));
+        setBloqueaDomingo(toBooleanDb(pagoData.bloquea_domingo));
+        setBloqueaDiasFestivos(toBooleanDb(pagoData.bloquea_dias_festivos));
+        setBloqueaFechasPersonalizadas(toBooleanDb(pagoData.bloquea_fechas_personalizadas, false));
+        setFechasBloqueadas(
+          parseFechasBloqueadas(
+            pagoData.fechas_bloqueadas ?? pagoData.fechas_bloqueadas_json
+          )
         );
 
         if (pagoData.estatus !== 'pagado') {
@@ -95,8 +120,28 @@ export default function NuevaPeticionPage() {
     return String(value ?? '').trim().toLowerCase();
   }
 
-  function toBooleanDb(value: unknown) {
+  function toBooleanDb(value: unknown, fallback = false) {
+    if (value === undefined || value === null) return fallback;
     return value === true || value === 1 || value === '1';
+  }
+
+  function parseFechasBloqueadas(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => String(item).trim())
+        .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item));
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return parseFechasBloqueadas(parsed);
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
   }
 
   const domicilios = useMemo<AddressOption[]>(() => {
@@ -111,16 +156,147 @@ export default function NuevaPeticionPage() {
       .filter((d) => Boolean(d.value));
   }, [profile]);
 
-  const isEspecialConRango =
-    normalizeCategoria(catalogoCategoria) === 'especial' &&
+  const fechasBloqueadasSet = useMemo(() => {
+    return new Set(
+      fechasBloqueadas
+        .map((fecha) => String(fecha).trim())
+        .filter((fecha) => /^\d{4}-\d{2}-\d{2}$/.test(fecha))
+    );
+  }, [fechasBloqueadas]);
+
+  function getMonthDayFromDate(date: Date) {
+    return `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  function getMotivosSalto(date: Date) {
+    const dateOnly = toSqlDateOnly(date);
+    const day = date.getDay();
+
+    const motivos: string[] = [];
+
+    const isSaturday = day === 6;
+    const isSunday = day === 0;
+    const isHoliday = FESTIVOS_MX_FIJOS.has(getMonthDayFromDate(date));
+    const isCustomBlocked = fechasBloqueadasSet.has(dateOnly);
+
+    if (bloqueaSabado && isSaturday) {
+      motivos.push('Sábado omitido');
+    }
+
+    if (bloqueaDomingo && isSunday) {
+      motivos.push('Domingo omitido');
+    }
+
+    if (bloqueaDiasFestivos && isHoliday) {
+      motivos.push('Día festivo');
+    }
+
+    if (bloqueaFechasPersonalizadas && isCustomBlocked) {
+      motivos.push('Fecha omitida por el administrador');
+    }
+
+    return motivos;
+  }
+
+  function isFechaBloqueada(date: Date) {
+    return getMotivosSalto(date).length > 0;
+  }
+
+  function calcularFechaFinConSaltos(start: Date, totalDias: number) {
+    const current = new Date(start);
+    current.setHours(0, 0, 0, 0);
+
+    let counted = 0;
+    let guard = 0;
+
+    while (counted < totalDias) {
+      if (!isFechaBloqueada(current)) {
+        counted += 1;
+
+        if (counted === totalDias) {
+          return new Date(current);
+        }
+      }
+
+      current.setDate(current.getDate() + 1);
+      guard += 1;
+
+      if (guard > 730) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  function calcularDetalleRango(start: Date, totalDias: number) {
+    const current = new Date(start);
+    current.setHours(0, 0, 0, 0);
+
+    let counted = 0;
+    let guard = 0;
+
+    const detalles: Array<{
+      fecha: Date;
+      fechaTexto: string;
+      aplica: boolean;
+      motivos: string[];
+      numeroAplicable: number | null;
+    }> = [];
+
+    while (counted < totalDias) {
+      const fecha = new Date(current);
+      const motivos = getMotivosSalto(fecha);
+      const aplica = motivos.length === 0;
+
+      let numeroAplicable: number | null = null;
+
+      if (aplica) {
+        counted += 1;
+        numeroAplicable = counted;
+      }
+
+      detalles.push({
+        fecha,
+        fechaTexto: toSqlDateOnly(fecha),
+        aplica,
+        motivos,
+        numeroAplicable,
+      });
+
+      if (counted === totalDias) {
+        return detalles;
+      }
+
+      current.setDate(current.getDate() + 1);
+      guard += 1;
+
+      if (guard > 730) {
+        return detalles;
+      }
+    }
+
+    return detalles;
+  }
+
+  const totalDiasRango = Number(rangoDias);
+
+  const tieneRangoFechas =
     usaRangoFechas &&
-    Number(rangoDias) > 0;
+    Number.isInteger(totalDiasRango) &&
+    totalDiasRango > 0;
 
   const fechaFinCalculada =
-    isEspecialConRango && fechaDeseada
-      ? addDays(fechaDeseada, Number(rangoDias) - 1)
+    tieneRangoFechas && fechaDeseada
+      ? calcularFechaFinConSaltos(fechaDeseada, totalDiasRango)
       : null;
 
+  const detalleRango =
+    tieneRangoFechas && fechaDeseada
+      ? calcularDetalleRango(fechaDeseada, totalDiasRango)
+      : [];
+
+  const fechasSaltadas = detalleRango.filter((item) => !item.aplica);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -143,7 +319,7 @@ export default function NuevaPeticionPage() {
     if (!fechaDeseada) {
       await Swal.fire(
         'Falta información',
-        isEspecialConRango
+        tieneRangoFechas
           ? 'Debes elegir la fecha inicial del rango.'
           : 'Debes elegir fecha y hora deseada.',
         'warning'
@@ -151,7 +327,7 @@ export default function NuevaPeticionPage() {
       return;
     }
 
-    if (isEspecialConRango) {
+    if (tieneRangoFechas) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -162,6 +338,24 @@ export default function NuevaPeticionPage() {
         await Swal.fire(
           'Fecha inválida',
           'Debes elegir una fecha inicial de hoy o posterior.',
+          'warning'
+        );
+        return;
+      }
+
+      if (isFechaBloqueada(selected)) {
+        await Swal.fire(
+          'Fecha no disponible',
+          'La fecha inicial seleccionada no aplica.',
+          'warning'
+        );
+        return;
+      }
+
+      if (!fechaFinCalculada) {
+        await Swal.fire(
+          'Rango inválido',
+          'No se pudo calcular la fecha final del rango. Revisa las fechas bloqueadas.',
           'warning'
         );
         return;
@@ -203,7 +397,7 @@ export default function NuevaPeticionPage() {
           descripcion: descripcion.trim(),
           usar_domicilio: usarDomicilio,
           domicilio_slot: usarDomicilio ? Number(domicilioSlot) : null,
-          fecha_deseada: isEspecialConRango
+          fecha_deseada: tieneRangoFechas
             ? toSqlDateOnly(fechaDeseada)
             : toSqlDateTime(fechaDeseada),
         }),
@@ -276,12 +470,6 @@ export default function NuevaPeticionPage() {
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  function addDays(date: Date, days: number) {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-  }
-
   function startOfDay(date: Date) {
     const next = new Date(date);
     next.setHours(0, 0, 0, 0);
@@ -301,12 +489,19 @@ export default function NuevaPeticionPage() {
   }
 
   function getRangeDayClassName(day: Date) {
-    if (!isEspecialConRango || !fechaDeseada || !fechaFinCalculada) {
+    if (!tieneRangoFechas || !fechaDeseada || !fechaFinCalculada) {
       return '';
     }
 
     if (!isInsideDateRange(day, fechaDeseada, fechaFinCalculada)) {
       return '';
+    }
+
+    const dateOnly = toSqlDateOnly(day);
+    const detalle = detalleRango.find((item) => item.fechaTexto === dateOnly);
+
+    if (detalle && !detalle.aplica) {
+      return 'cnt-special-range-skipped';
     }
 
     const isStart = isSameDay(day, fechaDeseada);
@@ -346,7 +541,7 @@ export default function NuevaPeticionPage() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">Formulario</p>
-        <h1 className="font-display text-3xl text-white">Nueva petición</h1>
+        <h1 className="font-display text-3xl text-white">Nueva petición: {categoriaLabel}</h1>
       </div>
 
       <form
@@ -426,11 +621,11 @@ export default function NuevaPeticionPage() {
 
         <div>
           <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-            {isEspecialConRango ? 'Elegir fechas deseadas' : 'Elegir fecha y hora deseada'}
+            {tieneRangoFechas ? 'Elegir fechas deseadas' : 'Elegir fecha y hora deseada'}
 
             <span className="block normal-case tracking-normal text-gray-500 mt-1">
-              {isEspecialConRango
-                ? `Selecciona la fecha inicial. Este especial cubrirá ${rangoDias} día${Number(rangoDias) === 1 ? '' : 's'}.`
+              {tieneRangoFechas
+                ? `Selecciona la fecha inicial. Cubrirá ${rangoDias} día${Number(rangoDias) === 1 ? '' : 's'}.`
                 : 'La hora seleccionada se mostrará en formato AM/PM.'}
             </span>
           </label>
@@ -444,7 +639,7 @@ export default function NuevaPeticionPage() {
                 return;
               }
 
-              if (isEspecialConRango) {
+              if (tieneRangoFechas) {
                 const onlyDate = new Date(date);
                 onlyDate.setHours(0, 0, 0, 0);
                 setFechaDeseada(onlyDate);
@@ -453,36 +648,95 @@ export default function NuevaPeticionPage() {
 
               setFechaDeseada(date);
             }}
-            showTimeSelect={!isEspecialConRango}
+
+            filterDate={
+              tieneRangoFechas
+                ? (date: Date) => !isFechaBloqueada(date)
+                : undefined
+            }
+            showTimeSelect={!tieneRangoFechas}
             locale="es"
             minDate={new Date()}
             filterTime={
-              isEspecialConRango
+              tieneRangoFechas
                 ? undefined
                 : (time: Date) => time.getTime() >= Date.now()
             }
             timeIntervals={30}
             timeCaption="Hora"
-            dateFormat={isEspecialConRango ? 'dd/MM/yyyy' : 'dd/MM/yyyy h:mm aa'}
+            dateFormat={tieneRangoFechas ? 'dd/MM/yyyy' : 'dd/MM/yyyy h:mm aa'}
             placeholderText={
-              isEspecialConRango
+              tieneRangoFechas
                 ? 'Selecciona fecha inicial'
                 : 'Selecciona fecha y hora'
             }
-            dayClassName={isEspecialConRango ? getRangeDayClassName : undefined}
+            dayClassName={tieneRangoFechas ? getRangeDayClassName : undefined}
             calendarClassName="cnt-datepicker-calendar"
             popperClassName="cnt-datepicker-popper"
             wrapperClassName="w-full"
             className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red cursor-pointer"
           />
 
+          {tieneRangoFechas && (
+            <div className="mt-3 rounded-lg border border-blue-900/60 bg-blue-950/20 px-4 py-3 text-sm">
+              {tieneRangoFechas && fechaDeseada && (
+                <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <span className="h-3 w-3 rounded bg-blue-700" />
+                    Día aplicable
+                  </div>
+
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <span className="h-3 w-3 rounded bg-yellow-700" />
+                    Día omitido
+                  </div>
+                </div>
+              )}
+              <p className="text-blue-200 font-semibold">
+                Reglas del rango
+              </p>
+
+              <ul className="mt-2 space-y-1 text-gray-400 text-xs">
+                <li>
+                  Total aplicable: {rangoDias} día{Number(rangoDias) === 1 ? '' : 's'}
+                </li>
+
+                {(bloqueaSabado || bloqueaDomingo) && (
+                  <li>
+                    Se omiten:{' '}
+                    {[
+                      bloqueaSabado ? 'sábados' : null,
+                      bloqueaDomingo ? 'domingos' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' y ')}
+                    .
+                  </li>
+                )}
+
+                {bloqueaDiasFestivos && (
+                  <li>
+                    Se omiten los días festivos.
+                  </li>
+                )}
+
+                {bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0 && (
+                  <li>
+                    NO aplicable: {fechasBloqueadas.length} fecha
+                    {fechasBloqueadas.length === 1 ? '' : 's'}.
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+
           {fechaDeseada && (
             <div className="mt-3 rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3">
               <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">
-                {isEspecialConRango ? 'Rango seleccionado' : 'Fecha seleccionada'}
+                {tieneRangoFechas ? 'Rango seleccionado' : 'Fecha seleccionada'}
               </p>
 
-              {isEspecialConRango ? (
+              {tieneRangoFechas ? (
                 <div className="space-y-1">
                   <p className="text-white">
                     Inicio:{' '}
@@ -499,9 +753,37 @@ export default function NuevaPeticionPage() {
                   </p>
 
                   <p className="text-xs text-gray-500">
-                    Se usarán {rangoDias} día{Number(rangoDias) === 1 ? '' : 's'} consecutivo
-                    {Number(rangoDias) === 1 ? '' : 's'} contando desde la fecha inicial.
+                    Se usarán {rangoDias} día{Number(rangoDias) === 1 ? '' : 's'} aplicable
+                    {Number(rangoDias) === 1 ? '' : 's'}. Las fechas no disponibles se omiten automáticamente.
                   </p>
+                  {fechasSaltadas.length > 0 && (
+                    <div className="mt-4 rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3">
+                      <p className="text-sm font-semibold text-yellow-300">
+                        Fechas omitidas:
+                      </p>
+
+                      <p className="text-xs text-gray-400 mt-1">
+                        El rango se extendió porque las siguientes fechas no son aplicables:
+                      </p>
+
+                      <div className="mt-3 space-y-2">
+                        {fechasSaltadas.map((item) => (
+                          <div
+                            key={item.fechaTexto}
+                            className="rounded-md border border-yellow-900/60 bg-cnt-dark px-3 py-2"
+                          >
+                            <p className="text-sm text-white">
+                              {formatFechaSolo(item.fecha)}
+                            </p>
+
+                            <p className="text-xs text-yellow-300 mt-0.5">
+                              {item.motivos.join(' | ')}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-lg font-semibold text-white">

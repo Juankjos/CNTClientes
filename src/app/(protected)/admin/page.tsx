@@ -498,16 +498,16 @@ export default function AdminPage() {
         <div className="flex gap-3">
           <Link
             href="/admin/catalog"
-            className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
+            className="px-4 py-2 bg-yellow-900 border border-cnt-border text-yellow-300 hover:text-white rounded-lg text-sm transition-colors"
           >
             Gestionar Catálogo
           </Link>
-          <Link
+          {/* <Link
             href="/catalog"
             className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
           >
             ← Portal
-          </Link>
+          </Link> */}
         </div>
       </div>
 
@@ -555,7 +555,7 @@ export default function AdminPage() {
                 }}
               />
 
-              <button
+              {/* <button
                 onClick={() => {
                   if (userPage !== 1) {
                     setUserPage(1);
@@ -566,7 +566,7 @@ export default function AdminPage() {
                 className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
               >
                 Buscar
-              </button>
+              </button> */}
 
               {userQ && (
                 <button
@@ -586,7 +586,7 @@ export default function AdminPage() {
                   setShowCreateUser((v) => !v);
                   setCreateUserMsg(null);
                 }}
-                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
+                className="cursor-pointer px-4 py-2 bg-green-950 border border-cnt-border text-green-300 hover:text-white rounded-lg text-sm transition-colors"
               >
                 {showCreateUser ? 'Cerrar formulario' : '+ Nuevo usuario'}
               </button>
@@ -850,7 +850,7 @@ export default function AdminPage() {
               }}
             />
 
-            <button
+            {/* <button
               type="button"
               onClick={() => {
                 if (pagosPage !== 1) {
@@ -862,7 +862,7 @@ export default function AdminPage() {
               className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
             >
               Buscar
-            </button>
+            </button> */}
 
             {pagosQ && (
               <button
@@ -992,7 +992,7 @@ export default function AdminPage() {
                 }}
               />
 
-              <button
+              {/* <button
                 type="button"
                 onClick={() => {
                   if (peticionesPage !== 1) {
@@ -1004,7 +1004,7 @@ export default function AdminPage() {
                 className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
               >
                 Buscar
-              </button>
+              </button> */}
 
               {peticionesQ && (
                 <button
@@ -1163,7 +1163,7 @@ export default function AdminPage() {
                 }}
               />
 
-              <button
+              {/* <button
                 type="button"
                 onClick={() => {
                   if (logPage !== 1) {
@@ -1175,7 +1175,7 @@ export default function AdminPage() {
                 className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
               >
                 Buscar
-              </button>
+              </button> */}
 
               {logQ && (
                 <button
