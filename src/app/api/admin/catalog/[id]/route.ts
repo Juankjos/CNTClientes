@@ -54,6 +54,7 @@ export async function PUT(
             imagen,
             activo,
             usa_rango_fechas,
+            usa_hora_cita,
             rango_dias,
             bloquea_sabado,
             bloquea_domingo,
@@ -79,6 +80,7 @@ export async function PUT(
         }
 
         const usaRango = toBool(usa_rango_fechas);
+        const usaHoraCita = toBool(usa_hora_cita);
         const rangoDias = usaRango ? Number(rango_dias) : null;
 
         if (usaRango && (!Number.isInteger(rangoDias) || Number(rangoDias) <= 0)) {
@@ -117,6 +119,7 @@ export async function PUT(
                 descripcion = ?,
                 categoria = ?,
                 usa_rango_fechas = ?,
+                usa_hora_cita = ?,
                 rango_dias = ?,
                 bloquea_sabado = ?,
                 bloquea_domingo = ?,
@@ -134,6 +137,7 @@ export async function PUT(
                 descripcion || null,
                 categoriaNormalizada,
                 usaRango ? 1 : 0,
+                usaHoraCita ? 1 : 0,
                 usaRango ? rangoDias : null,
                 bloqueaSabado ? 1 : 0,
                 bloqueaDomingo ? 1 : 0,

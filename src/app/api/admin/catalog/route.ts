@@ -56,6 +56,7 @@ export async function GET() {
             incluye_dias_festivos,
             bloquea_fechas_personalizadas,
             fechas_bloqueadas_json,
+            usa_hora_cita,
             precio,
             imagen,
             archivo,
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
             activo,
             usa_rango_fechas,
             rango_dias,
+            usa_hora_cita,
             bloquea_sabado,
             bloquea_domingo,
             bloquea_dias_festivos,
@@ -120,6 +122,7 @@ export async function POST(req: NextRequest) {
         }
 
         const usaRango = toBool(usa_rango_fechas);
+        const usaHoraCita = toBool(usa_hora_cita);
         const rangoDias = usaRango ? Number(rango_dias) : null;
 
         if (usaRango && (!Number.isInteger(rangoDias) || Number(rangoDias) <= 0)) {
@@ -153,44 +156,46 @@ export async function POST(req: NextRequest) {
         }
 
         const [result] = await pool.execute<ResultSetHeader>(
-        `
-        INSERT INTO catalogo_clientes
-        (
-            titulo,
-            descripcion,
-            categoria,
-            usa_rango_fechas,
-            rango_dias,
-            bloquea_sabado,
-            bloquea_domingo,
-            bloquea_dias_festivos,
-            incluye_fines_semana,
-            incluye_dias_festivos,
-            bloquea_fechas_personalizadas,
-            fechas_bloqueadas_json,
-            precio,
-            imagen,
-            activo
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-            String(titulo).trim(),
-            descripcion || null,
-            categoriaNormalizada,
-            usaRango ? 1 : 0,
-            usaRango ? rangoDias : null,
-            bloqueaSabado ? 1 : 0,
-            bloqueaDomingo ? 1 : 0,
-            bloqueaDiasFestivos ? 1 : 0,
-            incluyeFinesSemana ? 1 : 0,
-            incluyeDiasFestivos ? 1 : 0,
-            bloqueaFechasPersonalizadas ? 1 : 0,
-            bloqueaFechasPersonalizadas ? JSON.stringify(fechasBloqueadas) : null,
-            precio || 0,
-            imagen || null,
-            activo ? 1 : 0,
-        ]
+            `
+            INSERT INTO catalogo_clientes
+            (
+                titulo,
+                descripcion,
+                categoria,
+                usa_rango_fechas,
+                rango_dias,
+                usa_hora_cita,
+                bloquea_sabado,
+                bloquea_domingo,
+                bloquea_dias_festivos,
+                incluye_fines_semana,
+                incluye_dias_festivos,
+                bloquea_fechas_personalizadas,
+                fechas_bloqueadas_json,
+                precio,
+                imagen,
+                activo
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+                String(titulo).trim(),
+                descripcion || null,
+                categoriaNormalizada,
+                usaRango ? 1 : 0,
+                usaRango ? rangoDias : null,
+                usaHoraCita ? 1 : 0,
+                bloqueaSabado ? 1 : 0,
+                bloqueaDomingo ? 1 : 0,
+                bloqueaDiasFestivos ? 1 : 0,
+                incluyeFinesSemana ? 1 : 0,
+                incluyeDiasFestivos ? 1 : 0,
+                bloqueaFechasPersonalizadas ? 1 : 0,
+                bloqueaFechasPersonalizadas ? JSON.stringify(fechasBloqueadas) : null,
+                precio || 0,
+                imagen || null,
+                activo ? 1 : 0,
+            ]
         );
 
         return NextResponse.json(

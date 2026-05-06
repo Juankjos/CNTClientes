@@ -49,6 +49,7 @@ export default function NuevaPeticionPage() {
 
   const [usaRangoFechas, setUsaRangoFechas] = useState(false);
   const [rangoDias, setRangoDias] = useState<number | null>(null);
+  const [usaHoraCita, setUsaHoraCita] = useState(false);
 
   const [bloqueaSabado, setBloqueaSabado] = useState(false);
   const [bloqueaDomingo, setBloqueaDomingo] = useState(false);
@@ -86,6 +87,7 @@ export default function NuevaPeticionPage() {
             pagoData.fechas_bloqueadas ?? pagoData.fechas_bloqueadas_json
           )
         );
+        setUsaHoraCita(toBooleanDb(pagoData.usa_hora_cita));
 
         if (pagoData.estatus !== 'pagado') {
           router.replace('/peticiones/referencia');
@@ -142,6 +144,13 @@ export default function NuevaPeticionPage() {
     }
 
     return [];
+  }
+
+  function toSqlTime(date: Date) {
+    const hh = pad(date.getHours());
+    const mi = pad(date.getMinutes());
+
+    return `${hh}:${mi}:00`;
   }
 
   const domicilios = useMemo<AddressOption[]>(() => {
@@ -343,6 +352,15 @@ export default function NuevaPeticionPage() {
         return;
       }
 
+      if (usaHoraCita && fechaDeseada.getTime() < Date.now()) {
+        await Swal.fire(
+          'Fecha inválida',
+          'Debes elegir una fecha y hora posterior al momento actual.',
+          'warning'
+        );
+        return;
+      }
+
       if (isFechaBloqueada(selected)) {
         await Swal.fire(
           'Fecha no disponible',
@@ -360,7 +378,7 @@ export default function NuevaPeticionPage() {
         );
         return;
       }
-    } else if (fechaDeseada.getTime() < Date.now()) {
+    } else if (usaHoraCita && fechaDeseada.getTime() < Date.now()) {
       await Swal.fire(
         'Fecha inválida',
         'Debes elegir una fecha y hora posterior al momento actual.',
@@ -397,9 +415,8 @@ export default function NuevaPeticionPage() {
           descripcion: descripcion.trim(),
           usar_domicilio: usarDomicilio,
           domicilio_slot: usarDomicilio ? Number(domicilioSlot) : null,
-          fecha_deseada: tieneRangoFechas
-            ? toSqlDateOnly(fechaDeseada)
-            : toSqlDateTime(fechaDeseada),
+          fecha_deseada: toSqlDateOnly(fechaDeseada),
+          hora_cita: usaHoraCita ? toSqlTime(fechaDeseada) : null,
         }),
       });
 
@@ -446,6 +463,16 @@ export default function NuevaPeticionPage() {
           timeStyle: 'short',
           hour12: true,
       }).format(value);
+  }
+
+  function formatHoraAmPm(value: Date | null) {
+    if (!value) return '';
+
+    return new Intl.DateTimeFormat('es-MX', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(value);
   }
 
   function formatCategoria(value: string) {
@@ -621,12 +648,22 @@ export default function NuevaPeticionPage() {
 
         <div>
           <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-            {tieneRangoFechas ? 'Elegir fechas deseadas' : 'Elegir fecha y hora deseada'}
+            {tieneRangoFechas
+              ? usaHoraCita
+                ? 'Elegir fecha inicial y hora'
+                : 'Elegir fechas deseadas'
+              : usaHoraCita
+                ? 'Elegir fecha y hora deseada'
+                : 'Elegir fecha deseada'}
 
             <span className="block normal-case tracking-normal text-gray-500 mt-1">
               {tieneRangoFechas
-                ? `Selecciona la fecha inicial. Cubrirá ${rangoDias} día${Number(rangoDias) === 1 ? '' : 's'}.`
-                : 'La hora seleccionada se mostrará en formato AM/PM.'}
+                ? usaHoraCita
+                  ? `Selecciona la fecha inicial y la hora. Cubrirá ${rangoDias} día${Number(rangoDias) === 1 ? '' : 's'} aplicable${Number(rangoDias) === 1 ? '' : 's'} con el mismo horario.`
+                  : `Selecciona la fecha inicial. Cubrirá ${rangoDias} día${Number(rangoDias) === 1 ? '' : 's'}.`
+                : usaHoraCita
+                  ? 'La hora seleccionada se mostrará en formato AM/PM.'
+                  : 'Selecciona la fecha deseada.'}
             </span>
           </label>
 
@@ -639,36 +676,47 @@ export default function NuevaPeticionPage() {
                 return;
               }
 
-              if (tieneRangoFechas) {
-                const onlyDate = new Date(date);
-                onlyDate.setHours(0, 0, 0, 0);
-                setFechaDeseada(onlyDate);
-                return;
+              const next = new Date(date);
+
+              if (!usaHoraCita) {
+                next.setHours(0, 0, 0, 0);
               }
 
-              setFechaDeseada(date);
+              setFechaDeseada(next);
             }}
-
             filterDate={
               tieneRangoFechas
                 ? (date: Date) => !isFechaBloqueada(date)
                 : undefined
             }
-            showTimeSelect={!tieneRangoFechas}
+            showTimeSelect={usaHoraCita}
             locale="es"
             minDate={new Date()}
             filterTime={
-              tieneRangoFechas
-                ? undefined
-                : (time: Date) => time.getTime() >= Date.now()
+              usaHoraCita
+                ? (time: Date) => {
+                    const selectedDate = fechaDeseada ?? new Date();
+
+                    const selectedDay = startOfDay(selectedDate).getTime();
+                    const today = startOfDay(new Date()).getTime();
+
+                    if (selectedDay !== today) return true;
+
+                    return time.getTime() >= Date.now();
+                  }
+                : undefined
             }
             timeIntervals={30}
             timeCaption="Hora"
-            dateFormat={tieneRangoFechas ? 'dd/MM/yyyy' : 'dd/MM/yyyy h:mm aa'}
+            dateFormat={usaHoraCita ? 'dd/MM/yyyy h:mm aa' : 'dd/MM/yyyy'}
             placeholderText={
               tieneRangoFechas
-                ? 'Selecciona fecha inicial'
-                : 'Selecciona fecha y hora'
+                ? usaHoraCita
+                  ? 'Selecciona fecha inicial y hora'
+                  : 'Selecciona fecha inicial'
+                : usaHoraCita
+                  ? 'Selecciona fecha y hora'
+                  : 'Selecciona fecha'
             }
             dayClassName={tieneRangoFechas ? getRangeDayClassName : undefined}
             calendarClassName="cnt-datepicker-calendar"
@@ -752,9 +800,19 @@ export default function NuevaPeticionPage() {
                     </span>
                   </p>
 
+                  {usaHoraCita && (
+                    <p className="text-white">
+                      Hora:{' '}
+                      <span className="font-semibold">
+                        {formatHoraAmPm(fechaDeseada)}
+                      </span>
+                    </p>
+                  )}
+
                   <p className="text-xs text-gray-500">
                     Se usarán {rangoDias} día{Number(rangoDias) === 1 ? '' : 's'} aplicable
                     {Number(rangoDias) === 1 ? '' : 's'}. Las fechas no disponibles se omiten automáticamente.
+                    {usaHoraCita && ' La hora seleccionada aplicará a todas las fechas aplicables.'}
                   </p>
                   {fechasSaltadas.length > 0 && (
                     <div className="mt-4 rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3">

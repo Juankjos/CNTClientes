@@ -19,6 +19,7 @@ const emptyForm = (): CatalogoFormData => ({
   categoria: 'reportaje',
   usa_rango_fechas: false,
   rango_dias: null,
+  usa_hora_cita: false,
 
   bloquea_sabado: false,
   bloquea_domingo: false,
@@ -210,6 +211,7 @@ export default function AdminCatalogPage() {
         ...form,
 
         usa_rango_fechas: usaRango,
+        usa_hora_cita: Boolean(form.usa_hora_cita),
 
         rango_dias: usaRango ? Number(form.rango_dias) : null,
 
@@ -289,6 +291,7 @@ export default function AdminCatalogPage() {
         usaRango && item.rango_dias
           ? Number(item.rango_dias)
           : null,
+      usa_hora_cita: toBooleanDb(item.usa_hora_cita),
 
       bloquea_sabado:
         usaRango && toBooleanDb(item.bloquea_sabado),
@@ -673,6 +676,36 @@ export default function AdminCatalogPage() {
                 )}
               </div>
 
+            <div className="md:col-span-2 rounded-xl border border-cnt-border bg-cnt-dark p-4">
+              <label
+                htmlFor="usa_hora_cita"
+                className="flex items-center justify-between gap-4 cursor-pointer"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    ¿Agregar hora de cita o lanzamiento?
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si se habilita, el cliente podrá seleccionar una hora. Si hay rango de fechas,
+                    esa hora aplicará a todas las fechas aplicables del rango.
+                  </p>
+                </div>
+
+                <input
+                  id="usa_hora_cita"
+                  type="checkbox"
+                  checked={form.usa_hora_cita}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      usa_hora_cita: e.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 accent-red-600 cursor-pointer"
+                />
+              </label>
+            </div>
+
             <div>
               <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
                 Subir imagen
@@ -805,6 +838,11 @@ export default function AdminCatalogPage() {
                       <p className="text-xs text-blue-300 mt-1">
                         Rango de fechas: {Number(item.rango_dias)} día
                         {Number(item.rango_dias) === 1 ? '' : 's'}
+                      </p>
+                    )}
+                    {toBooleanDb(item.usa_hora_cita) && (
+                      <p className="text-xs text-purple-300 mt-1">
+                        Permite hora de cita o lanzamiento
                       </p>
                     )}
                     <span

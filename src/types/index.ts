@@ -13,6 +13,7 @@ export interface CatalogItem {
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
   usa_rango_fechas?: number | boolean;
   rango_dias?: number | null;
+  usa_hora_cita?: number | boolean;
 
   bloquea_sabado?: number | boolean;
   bloquea_domingo?: number | boolean;
@@ -77,6 +78,7 @@ export type CatalogoItem = {
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
   usa_rango_fechas: boolean | number;
   rango_dias: number | null;
+  usa_hora_cita: boolean | number;
 
   bloquea_sabado: boolean | number;
   bloquea_domingo: boolean | number;
@@ -100,6 +102,7 @@ export type CatalogoFormData = {
   categoria: 'reportaje' | 'noticia' | 'entrevista' | 'especial';
   usa_rango_fechas: boolean;
   rango_dias: number | null;
+  usa_hora_cita: boolean;
 
   bloquea_sabado: boolean;
   bloquea_domingo: boolean;

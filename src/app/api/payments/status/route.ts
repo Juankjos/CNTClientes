@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       c.categoria,
       c.usa_rango_fechas,
       c.rango_dias,
+      c.usa_hora_cita,
       c.incluye_fines_semana,
       c.incluye_dias_festivos,
       c.bloquea_sabado,
@@ -106,6 +107,7 @@ export async function GET(req: NextRequest) {
 
     usa_rango_fechas: toBool(row.usa_rango_fechas),
     rango_dias: row.rango_dias === null ? null : Number(row.rango_dias),
+    usa_hora_cita: toBool(row.usa_hora_cita),
 
     incluye_fines_semana: toBool(row.incluye_fines_semana, true),
     incluye_dias_festivos: toBool(row.incluye_dias_festivos, true),

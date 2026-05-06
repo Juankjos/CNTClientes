@@ -156,6 +156,26 @@ function addDaysToDateOnly(dateText: string, days: number) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function normalizeTime(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+
+  const text = String(value).trim();
+
+  const match = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = match[3] === undefined ? 0 : Number(match[3]);
+
+  if (hour < 0 || hour > 23) return null;
+  if (minute < 0 || minute > 59) return null;
+  if (second < 0 || second > 59) return null;
+
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
@@ -210,6 +230,8 @@ export async function GET(req: NextRequest) {
         p.fecha_deseada,
         p.fecha_fin,
         p.rango_dias,
+        p.usa_hora_cita,
+        p.hora_cita,
         p.estatus,
         p.comentario_admin,
         p.created_at,
@@ -268,6 +290,7 @@ export async function POST(req: NextRequest) {
       usar_domicilio,
       domicilio_slot,
       fecha_deseada,
+      hora_cita,
     } = body;
 
     if (!pago_id || !catalogo_id || !motivo || !descripcion || !fecha_deseada) {
@@ -336,6 +359,7 @@ export async function POST(req: NextRequest) {
           categoria,
           usa_rango_fechas,
           rango_dias,
+          usa_hora_cita,
           bloquea_sabado,
           bloquea_domingo,
           bloquea_dias_festivos,
@@ -366,6 +390,16 @@ export async function POST(req: NextRequest) {
       ? null
       : Number(catalogRows[0].rango_dias);
     const fechaInicio = toDateOnly(fecha_deseada);
+
+    const usaHoraCita = toBool(catalogRows[0].usa_hora_cita);
+    const horaCita = usaHoraCita ? normalizeTime(hora_cita) : null;
+
+    if (usaHoraCita && hora_cita && !horaCita) {
+      return NextResponse.json(
+        { error: 'hora_cita debe tener formato HH:mm o HH:mm:ss.' },
+        { status: 400 }
+      );
+    }
 
     if (!['noticia', 'reportaje', 'entrevista', 'especial'].includes(categoria)) {
       return NextResponse.json(
@@ -464,9 +498,11 @@ export async function POST(req: NextRequest) {
         fecha_deseada,
         fecha_fin,
         rango_dias,
+        usa_hora_cita,
+        hora_cita,
         estatus
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
       `,
       [
         clienteId,
@@ -481,6 +517,8 @@ export async function POST(req: NextRequest) {
         fechaInicio,
         fechaFin,
         rangoDiasPeticion,
+        usaHoraCita ? 1 : 0,
+        horaCita,
       ]
     );
 

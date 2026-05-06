@@ -33,6 +33,47 @@ const toHistoryValue = (value: unknown): string | null => {
   return String(value);
 };
 
+const NOTICIAS_CATEGORIAS = new Set(['noticia', 'entrevista', 'reportaje']);
+
+function toTipoDeNota(categoria: unknown): 'Noticia' | 'Entrevista' | 'Reportaje' {
+  const value = String(categoria ?? '').trim().toLowerCase();
+
+  if (value === 'entrevista') return 'Entrevista';
+  if (value === 'reportaje') return 'Reportaje';
+
+  return 'Noticia';
+}
+
+function normalizeTimeForDb(value: unknown, fallback = '09:00:00') {
+  if (value === undefined || value === null || value === '') return fallback;
+
+  const text = String(value).trim();
+
+  const match = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+  if (!match) return fallback;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = match[3] === undefined ? 0 : Number(match[3]);
+
+  if (hour < 0 || hour > 23) return fallback;
+  if (minute < 0 || minute > 59) return fallback;
+  if (second < 0 || second > 59) return fallback;
+
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+}
+
+function combineDateAndTime(dateValue: unknown, timeValue: unknown) {
+  const date = formatDateValue(dateValue);
+
+  if (!date) return null;
+
+  const time = normalizeTimeForDb(timeValue);
+
+  return `${date} ${time}`;
+}
+
 export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -141,12 +182,15 @@ export async function PATCH(
         cl.domicilio_1,
         cl.domicilio_2,
         cl.domicilio_3,
+        cl.usuario_id AS usuario_cliente_id,
+        pc.created_at AS fecha_pago,
         c.titulo AS catalogo_titulo,
         c.categoria AS catalogo_categoria,
         c.usa_rango_fechas AS catalogo_usa_rango_fechas,
         c.rango_dias AS catalogo_rango_dias
       FROM peticiones_clientes p
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
+      LEFT JOIN pagos_clientes pc ON pc.id = p.pago_id
       INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
       WHERE p.id = ?
       LIMIT 1
@@ -262,10 +306,6 @@ export async function PATCH(
     const isAcceptingNow =
       String(current.estatus) !== 'aceptada' && nextEstatus === 'aceptada';
 
-    const peticionTieneRango =
-      toBoolDb(current.catalogo_usa_rango_fechas) &&
-      Number(current.catalogo_rango_dias) > 0;
-
     if (updates.length) {
       await pool.execute(
         `
@@ -294,31 +334,62 @@ export async function PATCH(
         );
       }
 
-      if (isAcceptingNow && !peticionTieneRango) {
-        // Ajusta los nombres de columnas según tu tabla real de noticias.
-        // ---------------------------------------------------------
+      const categoriaCatalogo = String(
+        current.catalogo_categoria ?? current.categoria ?? ''
+      ).toLowerCase();
+
+      const rangoDiasPeticion =
+        current.rango_dias === null || current.rango_dias === undefined
+          ? Number(current.catalogo_rango_dias ?? 0)
+          : Number(current.rango_dias);
+
+      const tieneRangoMayorAUnDia =
+        Number.isInteger(rangoDiasPeticion) &&
+        rangoDiasPeticion > 1;
+
+      const debeInsertarNoticia =
+        isAcceptingNow &&
+        NOTICIAS_CATEGORIAS.has(categoriaCatalogo) &&
+        !tieneRangoMayorAUnDia;
+
+      if (debeInsertarNoticia) {
+        const fechaCita = combineDateAndTime(nextFechaDeseada, current.hora_cita);
+
+        if (!fechaCita) {
+          return NextResponse.json(
+            { error: 'No se pudo calcular fecha_cita para noticias.' },
+            { status: 400 }
+          );
+        }
+
         await pool.execute(
           `
           INSERT INTO noticias
           (
-            peticion_id,
-            catalogo_id,
-            cliente_id,
-            titulo,
+            noticia,
+            tipo_de_nota,
             descripcion,
-            fecha_programada,
-            estatus,
-            created_at
+            peticion_id,
+            cliente_cliente_id,
+            usuario_cliente_id,
+            domicilio,
+            fecha_pago,
+            fecha_cita,
+            pendiente,
+            ultima_mod
           )
-          VALUES (?, ?, ?, ?, ?, ?, 'pendiente', NOW())
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
           `,
           [
-            id,
-            current.catalogo_id,
-            current.cliente_id,
             nextMotivo,
+            toTipoDeNota(categoriaCatalogo),
             nextDescripcion,
-            nextFechaDeseada,
+            id,
+            current.cliente_id,
+            current.usuario_cliente_id ?? null,
+            current.domicilio_texto ?? null,
+            current.fecha_pago ?? null,
+            fechaCita,
           ]
         );
       }
