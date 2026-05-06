@@ -577,7 +577,7 @@ export default function NuevaPeticionPage() {
       >
         <div>
           <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-            Escribe brevemente el motivo o la razón para tu {categoriaLabel}
+            Escribe brevemente el motivo o la razón para tu {categoriaLabel}.
           </label>
           <textarea
             value={motivo}
@@ -590,7 +590,7 @@ export default function NuevaPeticionPage() {
 
         <div>
           <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-            Escribe una breve descripción de lo que quieres transmitirnos
+            Escribe una breve descripción de lo que quieres transmitirnos. (Si tu ubicación es relevante para tu petición, por ejemplo, si es un reporte de una situación específica, puedes incluir detalles de la ubicación aquí o elegir una de tus ubicaciones guardadas en el siguiente paso.)
           </label>
           <textarea
             value={descripcion}
@@ -604,7 +604,7 @@ export default function NuevaPeticionPage() {
         <div>
           <div className="flex items-center justify-between gap-4 mb-3">
             <label className="text-xs text-gray-400 uppercase tracking-widest">
-              ¿Elegir una de tus ubicaciones? (Si eliges no, esta información no se solicitará y se asumirá que la actividad no requiere una ubicación específica)
+              ¿Elegir una de tus ubicaciones? (Si eliges no, esta información no se solicitará y se asumirá que la actividad no requiere una ubicación específica.)
             </label>
 
             <button
