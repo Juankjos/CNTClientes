@@ -59,13 +59,16 @@ export async function GET(req: NextRequest) {
     if (q) {
       whereParts.push(`(
         c.titulo LIKE ?
+        OR p.motivo LIKE ?
+        OR p.descripcion LIKE ?
         OR u.username LIKE ?
         OR u.email LIKE ?
         OR cl.nombre LIKE ?
         OR cl.apellidos LIKE ?
       )`);
+
       const like = `%${q}%`;
-      params.push(like, like, like, like, like);
+      params.push(like, like, like, like, like, like, like);
     }
 
     const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
@@ -84,6 +87,8 @@ export async function GET(req: NextRequest) {
         p.archivos_subidos,
         p.archivos_eliminados_at,
         p.archivos_limpieza_error,
+        p.enviada_reporteros_at,
+        p.noticia_id,
         p.categoria,
         c.titulo,
         COALESCE(

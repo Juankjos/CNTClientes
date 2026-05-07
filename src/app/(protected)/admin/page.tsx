@@ -124,6 +124,77 @@ function archivoDownloadUrl(archivo: UploadedPeticionFile) {
   return `${apiPath(archivo.url)}?download=1`;
 }
 
+function toBooleanDb(value: unknown) {
+  return value === true || value === 1 || value === '1';
+}
+
+function toDateOnlyDisplay(value: unknown) {
+  if (!value) return '—';
+
+  const text = String(value).trim();
+  const dateOnly = text.length >= 10 ? text.slice(0, 10) : '';
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return '—';
+
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'medium',
+  }).format(date);
+}
+
+function formatHoraDb(value: unknown) {
+  const text = String(value ?? '').trim();
+
+  const match = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+  if (!match) return '';
+
+  const [, hh, mm] = match;
+
+  const date = new Date();
+  date.setHours(Number(hh), Number(mm), 0, 0);
+
+  return new Intl.DateTimeFormat('es-MX', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+}
+
+function formatFechaPeticion(dateValue: unknown, horaValue?: unknown, usaHora?: unknown) {
+  const fecha = toDateOnlyDisplay(dateValue);
+  const hora = toBooleanDb(usaHora) ? formatHoraDb(horaValue) : '';
+
+  if (fecha === '—') return '—';
+  if (!hora) return fecha;
+
+  return `${fecha} · ${hora}`;
+}
+
+function getRangoDiasPeticion(peticion: any) {
+  const value = peticion?.rango_dias ?? peticion?.catalogo_rango_dias ?? null;
+  const numberValue = Number(value);
+
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+function getFechasOmitidasPeticion(peticion: any): Array<{ fecha: string; motivos: string[] }> {
+  const value = peticion?.fechas_omitidas;
+
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item) => {
+    return (
+      item &&
+      typeof item === 'object' &&
+      typeof item.fecha === 'string' &&
+      Array.isArray(item.motivos)
+    );
+  });
+}
+
 export default function AdminPage() {
   const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('users');
 
@@ -165,6 +236,7 @@ export default function AdminPage() {
   const [reviewHistorial, setReviewHistorial] = useState<any[]>([]);
   const [reviewDomicilios, setReviewDomicilios] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState<ReviewForm>(emptyReviewForm);
+  const [sendingReporteros, setSendingReporteros] = useState(false);
 
   // --- Create user state ---
   const emptyCreateUserForm = {
@@ -375,6 +447,10 @@ export default function AdminPage() {
     }).format(value);
   }
 
+  function peticionEnviadaReporteros(peticion: any) {
+    return Boolean(peticion?.enviada_reporteros_at || peticion?.noticia_id);
+  }
+
   async function openPeticionReview(id: number) {
     try {
       setReviewOpen(true);
@@ -477,6 +553,69 @@ export default function AdminPage() {
       });
 
       setPeticionMsg('Ocurrió un problema al actualizar la petición');
+    }
+  }
+
+  async function enviarAReporteros(id: number) {
+    const confirm = await Swal.fire({
+      title: '¿Enviar contenido a reporteros?',
+      text: 'Si aceptas, se enviará a la lista de tareas para reporteros.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, enviar',
+      cancelButtonText: 'No, cancelar',
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setSendingReporteros(true);
+
+      const res = await fetch(apiPath(`/api/admin/peticiones/${id}/enviar-reporteros`), {
+        method: 'POST',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        await Swal.fire({
+          title: 'Error',
+          text: data.error ?? 'No se pudo enviar el contenido a reporteros.',
+          icon: 'error',
+          confirmButtonColor: '#dc2626',
+          background: '#111827',
+          color: '#ffffff',
+        });
+
+        return;
+      }
+
+      await Swal.fire({
+        title: 'Tarea enviada',
+        text: 'El contenido fue enviado a reporteros correctamente.',
+        icon: 'success',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+
+      await fetchPeticiones();
+      await openPeticionReview(id);
+    } catch {
+      await Swal.fire({
+        title: 'Error',
+        text: 'Ocurrió un problema al enviar el contenido a reporteros.',
+        icon: 'error',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    } finally {
+      setSendingReporteros(false);
     }
   }
 
@@ -1167,7 +1306,22 @@ export default function AdminPage() {
                   peticiones.map((p: any) => (
                     <tr key={p.id} className="bg-cnt-dark hover:bg-cnt-surface/50 transition-colors">
                       <td className="px-4 py-3 text-white">{p.cliente_nombre}</td>
-                      <td className="px-4 py-3 text-white">{p.titulo}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-white">{p.titulo}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Inicio: {formatFechaPeticion(p.fecha_deseada, p.hora_cita, p.usa_hora_cita)}
+                        </p>
+                        {p.fecha_fin && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Fin: {toDateOnlyDisplay(p.fecha_fin)}
+                          </p>
+                        )}
+                        {Number(p.rango_dias) > 0 && (
+                          <p className="text-xs text-blue-300 mt-0.5">
+                            Rango: {Number(p.rango_dias)} día{Number(p.rango_dias) === 1 ? '' : 's'}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {Number(p.archivos_count ?? 0) > 0 ? (
                           <span className="px-2 py-0.5 rounded border border-blue-800 bg-blue-950/40 text-blue-300 text-[10px] uppercase tracking-wider">
@@ -1178,13 +1332,21 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider ${
-                            PETICION_STATUS_STYLE[p.estatus] ?? 'bg-gray-800 text-gray-400 border-gray-700'
-                          }`}
-                        >
-                          {PETICION_STATUS_LABEL[p.estatus] ?? p.estatus}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={`w-fit px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider mb-2 ${
+                              PETICION_STATUS_STYLE[p.estatus] ?? 'bg-gray-800 text-gray-400 border-gray-700'
+                            }`}
+                          >
+                            {PETICION_STATUS_LABEL[p.estatus] ?? p.estatus}
+                          </span>
+
+                          {peticionEnviadaReporteros(p) && (
+                            <span className="w-fit px-2 py-0.5 rounded border border-green-800 bg-green-950/40 text-green-300 text-[10px] uppercase tracking-wider">
+                              Enviada a reporteros
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
@@ -1473,14 +1635,33 @@ export default function AdminPage() {
                       </>
                     )}
 
-                    {!reviewEditing && reviewPeticion.estatus === 'pendiente' && (
-                      <button
-                        type="button"
-                        onClick={() => setReviewEditing(true)}
-                        className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-border text-white hover:border-cnt-red text-sm"
-                      >
-                        Editar
-                      </button>
+                    {!reviewEditing &&
+                      reviewPeticion.estatus === 'pendiente' &&
+                      !peticionEnviadaReporteros(reviewPeticion) && (
+                        <button
+                          type="button"
+                          onClick={() => setReviewEditing(true)}
+                          className="cursor-pointer px-4 py-2 rounded-lg border border-cnt-border text-white hover:border-cnt-red text-sm"
+                        >
+                          Editar
+                        </button>
+                    )}
+
+                    {!reviewEditing && reviewPeticion.estatus === 'aceptada' && (
+                      peticionEnviadaReporteros(reviewPeticion) ? (
+                        <span className="px-4 py-2 rounded-lg border border-green-800 bg-green-950/40 text-green-300 text-sm">
+                          Tarea enviada a reporteros✅
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={sendingReporteros}
+                          onClick={() => enviarAReporteros(reviewPeticion.id)}
+                          className="cursor-pointer px-4 py-2 rounded-lg border border-blue-800 bg-blue-950/40 text-blue-300 hover:text-white hover:bg-blue-900/40 disabled:opacity-60 text-sm"
+                        >
+                          {sendingReporteros ? 'Enviando...' : 'Enviar a reporteros'}
+                        </button>
+                      )
                     )}
                   </div>
 
@@ -1684,13 +1865,76 @@ export default function AdminPage() {
                         </p>
                       </div>
 
-                      <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
-                          Fecha deseada
+                      <div className="rounded-xl border border-cnt-border bg-cnt-surface p-4">
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-3">
+                          Programación solicitada
                         </p>
-                        <p className="text-white">
-                          {formatFechaAmPm(parseFechaDeseada(reviewPeticion.fecha_deseada)) || '—'}
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-sm text-gray-400">
+                            Fecha deseada:{' '}
+                            <span className="text-white font-medium">
+                              {formatFechaPeticion(
+                                reviewPeticion.fecha_deseada,
+                                reviewPeticion.hora_cita,
+                                reviewPeticion.usa_hora_cita
+                              )}
+                            </span>
+                          </p>
+                          {reviewPeticion.fecha_fin && (
+                            <p className="text-sm text-gray-400">
+                              Fecha fin:{' '}
+                              <span className="text-white font-medium">
+                                {toDateOnlyDisplay(reviewPeticion.fecha_fin)}
+                              </span>
+                            </p>
+                          )}
+                          {getRangoDiasPeticion(reviewPeticion) && (
+                            <p className="text-sm text-gray-400">
+                              Rango:{' '}
+                              <span className="text-blue-300 font-medium">
+                                {getRangoDiasPeticion(reviewPeticion)} día
+                                {getRangoDiasPeticion(reviewPeticion) === 1 ? '' : 's'} aplicable
+                                {getRangoDiasPeticion(reviewPeticion) === 1 ? '' : 's'}
+                              </span>
+                            </p>
+                          )}
+                          {toBooleanDb(reviewPeticion.usa_hora_cita) && reviewPeticion.hora_cita && (
+                            <p className="text-sm text-gray-400">
+                              Hora:{' '}
+                              <span className="text-purple-300 font-medium">
+                                {formatHoraDb(reviewPeticion.hora_cita)}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                        {reviewPeticion.fecha_fin && (
+                          <div className="mt-4 border-t border-cnt-border pt-4">
+                            <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                              Días omitidos
+                            </p>
+                            {getFechasOmitidasPeticion(reviewPeticion).length === 0 ? (
+                              <p className="text-sm text-gray-500">
+                                No se omitieron días dentro del rango.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {getFechasOmitidasPeticion(reviewPeticion).map((item) => (
+                                  <div
+                                    key={item.fecha}
+                                    className="rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-3 py-2"
+                                  >
+                                    <p className="text-sm text-white">
+                                      {toDateOnlyDisplay(item.fecha)}
+                                    </p>
+                                    <p className="text-xs text-yellow-300 mt-0.5">
+                                      {item.motivos.join(' | ')}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div>

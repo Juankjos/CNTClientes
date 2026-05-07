@@ -7,6 +7,16 @@ import type { RowDataPacket } from 'mysql2';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
+const FESTIVOS_MX_FIJOS = new Set([
+  '01-01',
+  '02-02',
+  '03-16',
+  '05-01',
+  '09-16',
+  '11-20',
+  '12-25',
+]);
+
 function parseArchivosSubidos(value: unknown) {
   let parsed = value;
 
@@ -53,47 +63,6 @@ const toHistoryValue = (value: unknown): string | null => {
   return String(value);
 };
 
-const NOTICIAS_CATEGORIAS = new Set(['noticia', 'entrevista', 'reportaje']);
-
-function toTipoDeNota(categoria: unknown): 'Noticia' | 'Entrevista' | 'Reportaje' {
-  const value = String(categoria ?? '').trim().toLowerCase();
-
-  if (value === 'entrevista') return 'Entrevista';
-  if (value === 'reportaje') return 'Reportaje';
-
-  return 'Noticia';
-}
-
-function normalizeTimeForDb(value: unknown, fallback = '09:00:00') {
-  if (value === undefined || value === null || value === '') return fallback;
-
-  const text = String(value).trim();
-
-  const match = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
-
-  if (!match) return fallback;
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const second = match[3] === undefined ? 0 : Number(match[3]);
-
-  if (hour < 0 || hour > 23) return fallback;
-  if (minute < 0 || minute > 59) return fallback;
-  if (second < 0 || second > 59) return fallback;
-
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
-}
-
-function combineDateAndTime(dateValue: unknown, timeValue: unknown) {
-  const date = formatDateValue(dateValue);
-
-  if (!date) return null;
-
-  const time = normalizeTimeForDb(timeValue);
-
-  return `${date} ${time}`;
-}
-
 type DomicilioKey = 'domicilio_1' | 'domicilio_2' | 'domicilio_3';
 
 type AdminPeticionRow = RowDataPacket & {
@@ -101,6 +70,20 @@ type AdminPeticionRow = RowDataPacket & {
   domicilio_2?: string | null;
   domicilio_3?: string | null;
   archivos_subidos?: unknown;
+
+  fecha_deseada?: unknown;
+  fecha_fin?: unknown;
+  rango_dias?: number | string | null;
+
+  catalogo_usa_rango_fechas?: unknown;
+  catalogo_rango_dias?: number | string | null;
+  catalogo_bloquea_sabado?: unknown;
+  catalogo_bloquea_domingo?: unknown;
+  catalogo_bloquea_dias_festivos?: unknown;
+  catalogo_bloquea_fechas_personalizadas?: unknown;
+  catalogo_fechas_bloqueadas_json?: unknown;
+  enviada_reporteros_at?: unknown;
+  noticia_id?: number | null;
 };
 
 function getDomicilioValue(row: AdminPeticionRow, slot: number): string | null {
@@ -110,6 +93,144 @@ function getDomicilioValue(row: AdminPeticionRow, slot: number): string | null {
   const value = row[key];
 
   return value ? String(value) : null;
+}
+
+function toDateOnlyText(value: unknown): string | null {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    const yyyy = value.getFullYear();
+    const mm = String(value.getMonth() + 1).padStart(2, '0');
+    const dd = String(value.getDate()).padStart(2, '0');
+
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const text = String(value).trim();
+
+  if (!text) return null;
+
+  return text.length >= 10 ? text.slice(0, 10) : null;
+}
+
+function dateOnlyToDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateToDateOnly(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getMonthDay(dateOnly: string) {
+  return dateOnly.slice(5, 10);
+}
+
+function parseJsonDates(value: unknown): string[] {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return Array.from(
+    new Set(
+      parsed
+        .map((item) => String(item).trim())
+        .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+    )
+  ).sort();
+}
+
+function getMotivosOmitidos(row: AdminPeticionRow, dateOnly: string) {
+  const motivos: string[] = [];
+  const date = dateOnlyToDate(dateOnly);
+  const day = date.getDay();
+
+  const bloqueaSabado = toBoolDb(row.catalogo_bloquea_sabado);
+  const bloqueaDomingo = toBoolDb(row.catalogo_bloquea_domingo);
+  const bloqueaDiasFestivos = toBoolDb(row.catalogo_bloquea_dias_festivos);
+  const bloqueaFechasPersonalizadas = toBoolDb(row.catalogo_bloquea_fechas_personalizadas);
+
+  const fechasBloqueadas = new Set(
+    bloqueaFechasPersonalizadas
+      ? parseJsonDates(row.catalogo_fechas_bloqueadas_json)
+      : []
+  );
+
+  if (bloqueaSabado && day === 6) {
+    motivos.push('Sábado omitido');
+  }
+
+  if (bloqueaDomingo && day === 0) {
+    motivos.push('Domingo omitido');
+  }
+
+  if (bloqueaDiasFestivos && FESTIVOS_MX_FIJOS.has(getMonthDay(dateOnly))) {
+    motivos.push('Día festivo');
+  }
+
+  if (bloqueaFechasPersonalizadas && fechasBloqueadas.has(dateOnly)) {
+    motivos.push('Fecha omitida por el administrador');
+  }
+
+  return motivos;
+}
+
+function calcularFechasOmitidas(row: AdminPeticionRow) {
+  const fechaInicio = toDateOnlyText(row.fecha_deseada);
+  const fechaFin = toDateOnlyText(row.fecha_fin);
+
+  if (!fechaInicio || !fechaFin) return [];
+
+  const rangoDias = Number(row.rango_dias ?? row.catalogo_rango_dias ?? 0);
+
+  if (!Number.isInteger(rangoDias) || rangoDias <= 1) {
+    return [];
+  }
+
+  const current = dateOnlyToDate(fechaInicio);
+  const end = dateOnlyToDate(fechaFin);
+
+  const omitidas: Array<{
+    fecha: string;
+    motivos: string[];
+  }> = [];
+
+  let guard = 0;
+
+  while (current.getTime() <= end.getTime()) {
+    const dateOnly = dateToDateOnly(current);
+    const motivos = getMotivosOmitidos(row, dateOnly);
+
+    if (motivos.length > 0) {
+      omitidas.push({
+        fecha: dateOnly,
+        motivos,
+      });
+    }
+
+    current.setDate(current.getDate() + 1);
+    guard += 1;
+
+    if (guard > 730) break;
+  }
+
+  return omitidas;
 }
 
 export async function GET(
@@ -135,6 +256,13 @@ export async function GET(
             p.*,
             c.titulo,
             c.categoria AS catalogo_categoria,
+            c.usa_rango_fechas AS catalogo_usa_rango_fechas,
+            c.rango_dias AS catalogo_rango_dias,
+            c.bloquea_sabado AS catalogo_bloquea_sabado,
+            c.bloquea_domingo AS catalogo_bloquea_domingo,
+            c.bloquea_dias_festivos AS catalogo_bloquea_dias_festivos,
+            c.bloquea_fechas_personalizadas AS catalogo_bloquea_fechas_personalizadas,
+            c.fechas_bloqueadas_json AS catalogo_fechas_bloqueadas_json,
             cl.domicilio_1,
             cl.domicilio_2,
             cl.domicilio_3,
@@ -166,6 +294,7 @@ export async function GET(
     const peticion = {
       ...rawPeticion,
       archivos_subidos: parseArchivosSubidos(rawPeticion.archivos_subidos),
+      fechas_omitidas: calcularFechasOmitidas(rawPeticion),
     };
 
     const domiciliosDisponibles = [1, 2, 3]
@@ -246,6 +375,25 @@ export async function PATCH(
     }
 
     const current = rows[0];
+
+    const yaEnviadaReporteros = Boolean(current.enviada_reporteros_at || current.noticia_id);
+
+    const intentaEditarContenido =
+      hasOwn(body, 'motivo') ||
+      hasOwn(body, 'descripcion') ||
+      hasOwn(body, 'fecha_deseada') ||
+      hasOwn(body, 'usar_domicilio') ||
+      hasOwn(body, 'domicilio_slot');
+
+    const intentaCambiarEstatus =
+      hasOwn(body, 'estatus') && String(body.estatus) !== String(current.estatus);
+
+    if (yaEnviadaReporteros && (intentaEditarContenido || intentaCambiarEstatus)) {
+      return NextResponse.json(
+        { error: 'No puedes modificar una petición que ya fue enviada a reporteros.' },
+        { status: 400 }
+      );
+    }
 
     const nextMotivo = hasOwn(body, 'motivo') ? clean(body.motivo) : current.motivo;
     const nextDescripcion = hasOwn(body, 'descripcion') ? clean(body.descripcion) : current.descripcion;
@@ -346,9 +494,6 @@ export async function PATCH(
 
     maybePushChange('estatus', current.estatus, nextEstatus, 'estatus', estatusAction);
 
-    const isAcceptingNow =
-      String(current.estatus) !== 'aceptada' && nextEstatus === 'aceptada';
-
     if (updates.length) {
       await pool.execute(
         `
@@ -373,66 +518,6 @@ export async function PATCH(
             toHistoryValue(change.prev),
             toHistoryValue(change.next),
             session.user.id,
-          ]
-        );
-      }
-
-      const categoriaCatalogo = String(
-        current.catalogo_categoria ?? current.categoria ?? ''
-      ).toLowerCase();
-
-      const rangoDiasPeticion =
-        current.rango_dias === null || current.rango_dias === undefined
-          ? Number(current.catalogo_rango_dias ?? 0)
-          : Number(current.rango_dias);
-
-      const tieneRangoMayorAUnDia =
-        Number.isInteger(rangoDiasPeticion) &&
-        rangoDiasPeticion > 1;
-
-      const debeInsertarNoticia =
-        isAcceptingNow &&
-        NOTICIAS_CATEGORIAS.has(categoriaCatalogo) &&
-        !tieneRangoMayorAUnDia;
-
-      if (debeInsertarNoticia) {
-        const fechaCita = combineDateAndTime(nextFechaDeseada, current.hora_cita);
-
-        if (!fechaCita) {
-          return NextResponse.json(
-            { error: 'No se pudo calcular fecha_cita para noticias.' },
-            { status: 400 }
-          );
-        }
-
-        await pool.execute(
-          `
-          INSERT INTO noticias
-          (
-            noticia,
-            tipo_de_nota,
-            descripcion,
-            peticion_id,
-            cliente_cliente_id,
-            usuario_cliente_id,
-            domicilio,
-            fecha_pago,
-            fecha_cita,
-            pendiente,
-            ultima_mod
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
-          `,
-          [
-            nextMotivo,
-            toTipoDeNota(categoriaCatalogo),
-            nextDescripcion,
-            id,
-            current.cliente_id,
-            current.usuario_cliente_id ?? null,
-            current.domicilio_texto ?? null,
-            current.fecha_pago ?? null,
-            fechaCita,
           ]
         );
       }
