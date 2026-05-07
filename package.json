@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "busboy": "^1.6.0",
     "date-fns": "^4.1.0",
     "iron-session": "^8.0.3",
     "mysql2": "^3.9.7",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",
     "@types/bcryptjs": "^2.4.6",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19",

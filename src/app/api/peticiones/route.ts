@@ -4,6 +4,8 @@ import { getSession } from '@/lib/session';
 import { pool } from '@/lib/db';
 import { logAction } from '@/lib/logger';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import path from 'node:path';
+import { stat } from 'node:fs/promises';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
@@ -16,6 +18,112 @@ const FESTIVOS_MX_FIJOS = new Set([
   '11-20',
   '12-25',
 ]);
+
+function parseArchivosSubidos(value: unknown) {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed;
+}
+
+type UploadedPeticionFile = {
+  id: string;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  kind: 'image' | 'document' | 'video' | 'compressed';
+  relativePath: string;
+  url: string;
+};
+
+const UPLOAD_ROOT = process.env.UPLOAD_DIR;
+
+if (!UPLOAD_ROOT) {
+  throw new Error('UPLOAD_DIR no está definido');
+}
+
+const MEDIA_ROOT = path.join(UPLOAD_ROOT, 'media');
+
+function isUploadedFile(value: any): value is UploadedPeticionFile {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.id === 'string' &&
+    typeof value.originalName === 'string' &&
+    typeof value.storedName === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.size === 'number' &&
+    ['image', 'document', 'video', 'compressed'].includes(value.kind) &&
+    typeof value.relativePath === 'string' &&
+    typeof value.url === 'string'
+  );
+}
+
+async function normalizeArchivosSubidos(value: unknown, clienteId: number) {
+  if (value === undefined || value === null) return [];
+
+  if (!Array.isArray(value)) {
+    throw new Error('archivos_subidos debe ser un arreglo.');
+  }
+
+  const safeFiles: UploadedPeticionFile[] = [];
+
+  for (const item of value) {
+    if (!isUploadedFile(item)) {
+      throw new Error('Uno de los archivos subidos tiene formato inválido.');
+    }
+
+    const expectedPrefix = `peticiones/${clienteId}/`;
+
+    if (!item.relativePath.startsWith(expectedPrefix)) {
+      throw new Error('Uno de los archivos no pertenece al cliente actual.');
+    }
+
+    const fullPath = path.join(MEDIA_ROOT, item.relativePath);
+    const safeRoot = `${path.join(MEDIA_ROOT, 'peticiones', String(clienteId))}${path.sep}`;
+
+    if (!fullPath.startsWith(safeRoot)) {
+      throw new Error('Ruta de archivo inválida.');
+    }
+
+    const info = await stat(fullPath);
+
+    if (!info.isFile()) {
+      throw new Error('Uno de los archivos subidos no existe.');
+    }
+
+    if (info.size !== item.size) {
+      throw new Error('Uno de los archivos subidos tiene tamaño inconsistente.');
+    }
+
+    safeFiles.push({
+      id: item.id,
+      originalName: item.originalName,
+      storedName: item.storedName,
+      mimeType: item.mimeType,
+      size: item.size,
+      kind: item.kind,
+      relativePath: item.relativePath,
+      url: item.url,
+    });
+  }
+
+  return safeFiles;
+}
 
 function toDateOnly(value: unknown) {
   const text = String(value ?? '').trim();
@@ -232,6 +340,9 @@ export async function GET(req: NextRequest) {
         p.rango_dias,
         p.usa_hora_cita,
         p.hora_cita,
+        p.archivos_subidos,
+        p.archivos_eliminados_at,
+        p.archivos_limpieza_error,
         p.estatus,
         p.comentario_admin,
         p.created_at,
@@ -257,8 +368,13 @@ export async function GET(req: NextRequest) {
 
     const total = Number(countRows[0]?.total ?? 0);
 
+    const peticiones = rows.map((row) => ({
+      ...row,
+      archivos_subidos: parseArchivosSubidos(row.archivos_subidos),
+    }));
+
     return NextResponse.json({
-      peticiones: rows,
+      peticiones,
       pagination: {
         page,
         limit,
@@ -291,6 +407,7 @@ export async function POST(req: NextRequest) {
       domicilio_slot,
       fecha_deseada,
       hora_cita,
+      archivos_subidos,
     } = body;
 
     if (!pago_id || !catalogo_id || !motivo || !descripcion || !fecha_deseada) {
@@ -313,6 +430,18 @@ export async function POST(req: NextRequest) {
 
     const cliente = clienteRows[0];
     const clienteId = Number(cliente.id);
+    let archivosSubidos: UploadedPeticionFile[] = [];
+
+    try {
+      archivosSubidos = await normalizeArchivosSubidos(archivos_subidos, clienteId);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : 'Archivos inválidos.',
+        },
+        { status: 400 }
+      );
+    }
 
     const [pagoRows] = await pool.execute<RowDataPacket[]>(
       `SELECT id, catalogo_id, estatus
@@ -500,9 +629,10 @@ export async function POST(req: NextRequest) {
         rango_dias,
         usa_hora_cita,
         hora_cita,
+        archivos_subidos,
         estatus
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
       `,
       [
         clienteId,
@@ -519,6 +649,7 @@ export async function POST(req: NextRequest) {
         rangoDiasPeticion,
         usaHoraCita ? 1 : 0,
         horaCita,
+        archivosSubidos.length ? JSON.stringify(archivosSubidos) : null,
       ]
     );
 

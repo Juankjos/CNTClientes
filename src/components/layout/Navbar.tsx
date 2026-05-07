@@ -67,7 +67,7 @@ export default function Navbar({ user }: NavbarProps) {
                   : 'text-gray-400 hover:text-red-300 hover:bg-red-950/20'
               }`}
             >
-              Admin
+              Panel de administración
             </Link>
           )}
         </nav>

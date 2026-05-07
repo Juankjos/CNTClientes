@@ -70,7 +70,6 @@ export interface LogEntry {
   username?: string;
 }
 
-// Agrega esto al archivo existente
 export type CatalogoItem = {
   id: number;
   titulo: string;
@@ -116,6 +115,17 @@ export type CatalogoFormData = {
   precio: number;
   imagen: string;
   activo: boolean;
+};
+
+export type ArchivoSubido = {
+  originalName: string;
+  storedName: string;
+  storageKey: string;
+  url: string;
+  mimeType: string;
+  size: number;
+  category: 'image' | 'document' | 'video' | 'archive';
+  uploadedAt: string;
 };
 
 // Augment iron-session

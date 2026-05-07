@@ -48,6 +48,82 @@ const emptyReviewForm: ReviewForm = {
   estatus: 'pendiente',
 };
 
+type UploadedPeticionFile = {
+  id: string;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  kind: 'image' | 'document' | 'video' | 'compressed';
+  relativePath: string;
+  url: string;
+};
+
+function isUploadedPeticionFile(value: any): value is UploadedPeticionFile {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.id === 'string' &&
+    typeof value.originalName === 'string' &&
+    typeof value.storedName === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.size === 'number' &&
+    typeof value.url === 'string'
+  );
+}
+
+function getArchivosPeticion(peticion: any): UploadedPeticionFile[] {
+  const archivos = peticion?.archivos_subidos;
+
+  if (!Array.isArray(archivos)) return [];
+
+  return archivos.filter(isUploadedPeticionFile);
+}
+
+function formatBytes(bytes: number) {
+  const KB = 1024;
+  const MB = 1024 * KB;
+  const GB = 1024 * MB;
+
+  if (bytes >= GB) return `${(bytes / GB).toFixed(2)} GB`;
+  if (bytes >= MB) return `${(bytes / MB).toFixed(2)} MB`;
+  if (bytes >= KB) return `${(bytes / KB).toFixed(2)} KB`;
+
+  return `${bytes} B`;
+}
+
+function iconForArchivo(kind: UploadedPeticionFile['kind']) {
+  if (kind === 'image') return '🖼️';
+  if (kind === 'video') return '🎬';
+  if (kind === 'document') return '📄';
+  if (kind === 'compressed') return '🗜️';
+
+  return '📎';
+}
+
+function canPreviewInline(archivo: UploadedPeticionFile) {
+  const mime = String(archivo.mimeType ?? '').toLowerCase();
+  const name = String(archivo.originalName ?? '').toLowerCase();
+
+  return (
+    mime.startsWith('image/') ||
+    mime.startsWith('video/') ||
+    mime === 'application/pdf' ||
+    name.endsWith('.pdf') ||
+    mime.startsWith('text/') ||
+    name.endsWith('.txt') ||
+    name.endsWith('.csv')
+  );
+}
+
+function archivoUrl(archivo: UploadedPeticionFile) {
+  return apiPath(archivo.url);
+}
+
+function archivoDownloadUrl(archivo: UploadedPeticionFile) {
+  return `${apiPath(archivo.url)}?download=1`;
+}
+
 export default function AdminPage() {
   const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('users');
 
@@ -1059,7 +1135,7 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-cnt-border bg-cnt-surface">
-                  {['Cliente', 'Contenido', 'Estatus', 'Acciones'].map((h) => (
+                  {['Cliente', 'Contenido', 'Archivos', 'Estatus', 'Acciones'].map((h) => (
                     <th
                       key={h}
                       className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest"
@@ -1074,7 +1150,7 @@ export default function AdminPage() {
                 {peticionesLoading ? (
                   [...Array(5)].map((_, i) => (
                     <tr key={i} className="bg-cnt-dark">
-                      {[...Array(4)].map((_, j) => (
+                      {[...Array(5)].map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-cnt-surface rounded animate-pulse" />
                         </td>
@@ -1083,7 +1159,7 @@ export default function AdminPage() {
                   ))
                 ) : peticiones.length === 0 ? (
                   <tr className="bg-cnt-dark">
-                    <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                    <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
                       No se encontraron peticiones.
                     </td>
                   </tr>
@@ -1092,6 +1168,15 @@ export default function AdminPage() {
                     <tr key={p.id} className="bg-cnt-dark hover:bg-cnt-surface/50 transition-colors">
                       <td className="px-4 py-3 text-white">{p.cliente_nombre}</td>
                       <td className="px-4 py-3 text-white">{p.titulo}</td>
+                      <td className="px-4 py-3">
+                        {Number(p.archivos_count ?? 0) > 0 ? (
+                          <span className="px-2 py-0.5 rounded border border-blue-800 bg-blue-950/40 text-blue-300 text-[10px] uppercase tracking-wider">
+                            {p.archivos_count} archivo{Number(p.archivos_count) === 1 ? '' : 's'}
+                          </span>
+                        ) : (
+                          <span className="text-gray-600 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={`px-2 py-0.5 rounded border text-[10px] uppercase tracking-wider ${
@@ -1493,14 +1578,14 @@ export default function AdminPage() {
                             onChange={(date: Date | null) =>
                               setReviewForm((f) => ({ ...f, fecha_deseada: date }))
                             }
-                            showTimeSelect
+                            showTimeSelect={Boolean(reviewPeticion?.usa_hora_cita)}
                             locale="es"
                             minDate={new Date()}
                             filterTime={(time) => time.getTime() >= Date.now()}
                             timeIntervals={30}
                             timeCaption="Hora"
-                            dateFormat="dd/MM/yyyy h:mm aa"
-                            placeholderText="Selecciona fecha y hora"
+                            dateFormat={reviewPeticion?.usa_hora_cita ? 'dd/MM/yyyy h:mm aa' : 'dd/MM/yyyy'}
+                            placeholderText={reviewPeticion?.usa_hora_cita ? 'Selecciona fecha y hora' : 'Selecciona fecha'}
                             calendarClassName="cnt-datepicker-calendar"
                             popperClassName="cnt-datepicker-popper"
                             wrapperClassName="w-full"
@@ -1615,6 +1700,116 @@ export default function AdminPage() {
                         <p className="text-yellow-300 whitespace-pre-wrap">
                           {reviewPeticion.comentario_admin || '—'}
                         </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Archivos adjuntos
+                        </p>
+
+                        {reviewPeticion.archivos_eliminados_at ? (
+                          <div className="rounded-lg border border-yellow-800 bg-yellow-950/30 px-4 py-3">
+                            <p className="text-sm text-yellow-300">
+                              Los archivos de esta petición ya fueron eliminados por limpieza automática.
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Eliminados el{' '}
+                              {new Date(reviewPeticion.archivos_eliminados_at).toLocaleString('es-MX', {
+                                dateStyle: 'medium',
+                                timeStyle: 'short',
+                              })}
+                            </p>
+
+                            {reviewPeticion.archivos_limpieza_error && (
+                              <p className="text-xs text-red-300 mt-2">
+                                Error de limpieza: {reviewPeticion.archivos_limpieza_error}
+                              </p>
+                            )}
+                          </div>
+                        ) : getArchivosPeticion(reviewPeticion).length === 0 ? (
+                          <p className="text-sm text-gray-500">No se adjuntaron archivos.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {getArchivosPeticion(reviewPeticion).map((archivo) => (
+                              <div
+                                key={archivo.id}
+                                className="rounded-xl border border-cnt-border bg-cnt-surface overflow-hidden"
+                              >
+                                <div className="p-4 flex items-start gap-3">
+                                  <div className="text-3xl shrink-0">
+                                    {iconForArchivo(archivo.kind)}
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm text-white font-medium truncate">
+                                      {archivo.originalName}
+                                    </p>
+
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {archivo.kind} · {formatBytes(Number(archivo.size))}
+                                    </p>
+
+                                    <p className="text-[10px] text-gray-600 mt-1 truncate">
+                                      {archivo.mimeType}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {canPreviewInline(archivo) && (
+                                  <div className="border-t border-cnt-border bg-cnt-dark">
+                                    {archivo.mimeType.startsWith('image/') ? (
+                                      <a
+                                        href={archivoUrl(archivo)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Abrir imagen"
+                                      >
+                                        <img
+                                          src={archivoUrl(archivo)}
+                                          alt={archivo.originalName}
+                                          className="h-48 w-full object-contain bg-black/40"
+                                        />
+                                      </a>
+                                    ) : archivo.mimeType.startsWith('video/') ? (
+                                      <video
+                                        controls
+                                        preload="metadata"
+                                        className="h-48 w-full bg-black"
+                                      >
+                                        <source src={archivoUrl(archivo)} type={archivo.mimeType} />
+                                        Tu navegador no puede reproducir este video.
+                                      </video>
+                                    ) : (
+                                      <iframe
+                                        src={archivoUrl(archivo)}
+                                        title={archivo.originalName}
+                                        className="h-48 w-full bg-white"
+                                      />
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="p-3 border-t border-cnt-border flex flex-wrap gap-2">
+                                  <a
+                                    href={archivoUrl(archivo)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 rounded-lg border border-cnt-border text-xs text-gray-300 hover:text-white hover:border-cnt-red"
+                                  >
+                                    Ver
+                                  </a>
+
+                                  <a
+                                    href={archivoDownloadUrl(archivo)}
+                                    className="px-3 py-1.5 rounded-lg border border-cnt-border bg-cnt-blue text-xs text-gray-300 hover:text-white hover:border-cnt-red"
+                                  >
+                                    Descargar
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

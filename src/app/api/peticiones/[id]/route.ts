@@ -7,6 +7,26 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+function parseArchivosSubidos(value: unknown) {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed;
+}
+
 export async function GET(_req: NextRequest, { params }: RouteContext) {
   const session = await getSession();
   const user = session.user;
@@ -32,21 +52,40 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       pc.id,
       pc.pago_id,
       pc.catalogo_id,
+      pc.categoria,
       pc.motivo,
       pc.descripcion,
+
       pc.usar_domicilio,
       pc.domicilio_slot,
+      pc.domicilio_texto,
+
       pc.fecha_deseada,
+      pc.fecha_fin,
+      pc.rango_dias,
+
+      pc.usa_hora_cita,
+      pc.hora_cita,
+
+      pc.archivos_subidos,
+      pc.archivos_eliminados_at,
+      pc.archivos_limpieza_error,
+
+      pc.estatus AS peticion_estatus,
+      pc.comentario_admin,
       pc.created_at,
       pc.updated_at,
 
-      p.estatus,
+      p.estatus AS pago_estatus,
       p.referencia,
       p.monto,
       p.pagado_at,
 
       c.titulo AS servicio,
-      c.categoria,
+      c.categoria AS catalogo_categoria,
+      c.usa_rango_fechas,
+      c.rango_dias AS catalogo_rango_dias,
+      c.usa_hora_cita AS catalogo_usa_hora_cita,
 
       cc.domicilio_1,
       cc.domicilio_2,
@@ -69,5 +108,12 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: 'Formulario no encontrado' }, { status: 404 });
   }
 
-  return NextResponse.json(rows[0]);
+  const row = rows[0];
+  const archivos = parseArchivosSubidos(row.archivos_subidos);
+
+  return NextResponse.json({
+    ...row,
+    archivos_subidos: archivos,
+    archivos_count: archivos.length,
+  });
 }

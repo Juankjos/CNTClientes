@@ -16,6 +16,55 @@ type AddressOption = {
   value: string;
 };
 
+type UploadedPeticionFile = {
+  id: string;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  kind: 'image' | 'document' | 'video' | 'compressed';
+  relativePath: string;
+  url: string;
+};
+
+type FilePreview = {
+  id: string;
+  file: File;
+  kind: UploadedPeticionFile['kind'] | null;
+  error?: string;
+};
+
+const MB = 1024 * 1024;
+const GB = 1024 * MB;
+
+const MAX_BY_KIND = {
+  image: 25 * MB,
+  document: 100 * MB,
+  video: 1 * GB,
+  compressed: 500 * MB,
+} as const;
+
+const MAX_TOTAL_FILES = 2 * GB;
+
+const ACCEPTED_FILES = [
+  'image/*',
+  'video/*',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.txt',
+  '.csv',
+  '.zip',
+  '.rar',
+  '.7z',
+  '.tar',
+  '.gz',
+].join(',');
+
 const FESTIVOS_MX_FIJOS = new Set([
   '01-01',
   '02-02',
@@ -56,6 +105,10 @@ export default function NuevaPeticionPage() {
   const [bloqueaDiasFestivos, setBloqueaDiasFestivos] = useState(false);
   const [bloqueaFechasPersonalizadas, setBloqueaFechasPersonalizadas] = useState(false);
   const [fechasBloqueadas, setFechasBloqueadas] = useState<string[]>([]);
+
+  const [filePreviews, setFilePreviews] = useState<FilePreview[]>([]);
+  const [uploadedPeticionFiles, setUploadedPeticionFiles] = useState<UploadedPeticionFile[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -145,6 +198,185 @@ export default function NuevaPeticionPage() {
 
     return [];
   }
+
+  // ---------------- BLOQUE DE ARCHIVOS A SUBIR ---------------- 
+  function getFileKind(file: File): UploadedPeticionFile['kind'] | null {
+    const name = file.name.toLowerCase();
+    const type = file.type.toLowerCase();
+
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+
+    if (
+      name.endsWith('.zip') ||
+      name.endsWith('.rar') ||
+      name.endsWith('.7z') ||
+      name.endsWith('.tar') ||
+      name.endsWith('.gz')
+    ) {
+      return 'compressed';
+    }
+
+    if (
+      name.endsWith('.pdf') ||
+      name.endsWith('.doc') ||
+      name.endsWith('.docx') ||
+      name.endsWith('.xls') ||
+      name.endsWith('.xlsx') ||
+      name.endsWith('.ppt') ||
+      name.endsWith('.pptx') ||
+      name.endsWith('.txt') ||
+      name.endsWith('.csv')
+    ) {
+      return 'document';
+    }
+
+    return null;
+  }
+
+  function iconForKind(kind: UploadedPeticionFile['kind'] | null) {
+    if (kind === 'image') return '🖼️';
+    if (kind === 'video') return '🎬';
+    if (kind === 'document') return '📄';
+    if (kind === 'compressed') return '🗜️';
+    return '📎';
+  }
+
+  function validateFiles(files: File[]) {
+    const errors: string[] = [];
+
+    const alreadyUploadedSize = uploadedPeticionFiles.reduce((sum, file) => sum + file.size, 0);
+    const newSize = files.reduce((sum, file) => sum + file.size, 0);
+
+    if (alreadyUploadedSize + newSize > MAX_TOTAL_FILES) {
+      errors.push('El total de archivos excede el máximo permitido de 2 GB.');
+    }
+
+    for (const file of files) {
+      const kind = getFileKind(file);
+
+      if (!kind) {
+        errors.push(`"${file.name}" no tiene un tipo permitido.`);
+        continue;
+      }
+
+      const maxSize = MAX_BY_KIND[kind];
+
+      if (file.size > maxSize) {
+        errors.push(
+          `"${file.name}" excede el máximo permitido para ${kind}: ${formatBytes(maxSize)}.`
+        );
+      }
+    }
+
+    return errors;
+  }
+
+  async function handleFilesSelected(filesList: FileList | null) {
+    const files = Array.from(filesList ?? []);
+
+    if (!files.length) return;
+
+    const errors = validateFiles(files);
+
+    if (errors.length) {
+      await Swal.fire('Archivos inválidos', errors.join('\n'), 'warning');
+      return;
+    }
+
+    const previews: FilePreview[] = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      kind: getFileKind(file),
+    }));
+
+    setFilePreviews((prev) => [...prev, ...previews]);
+
+    const formData = new FormData();
+
+    for (const file of files) {
+      formData.append('files', file);
+    }
+
+    try {
+      setUploadingFiles(true);
+      const res = await fetch(apiPath('/api/peticiones/upload'), {
+        method: 'POST',
+        body: formData,
+      });
+
+      // 1. Intenta obtener JSON
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        // Si no es JSON (ej. 413 de Nginx, HTML de error), lee el texto
+        data.rawText = await res.text().catch(() => '');
+      }
+
+      // 2. Extrae el mensaje de error de forma segura
+      const errorMessage = data.error || 
+                          data.message || 
+                          (data.rawText && data.rawText.length > 5 ? data.rawText.substring(0, 200) : null) ||
+                          'No se pudieron subir los archivos.';
+
+      if (!res.ok) {
+        // 3. Diferencia por código de estado para dar contexto al usuario
+        if (res.status === 413) {
+          throw new Error('El archivo o la cantidad de datos excede el límite permitido.');
+        }
+        if (res.status === 415 || res.status === 400 && errorMessage.toLowerCase().includes('tipo')) {
+          throw new Error(errorMessage);
+        }
+        throw new Error(errorMessage);
+      }
+
+      // 4. Si es 200 OK pero la respuesta es extraña
+      if (!data.files || !Array.isArray(data.files)) {
+        throw new Error('Respuesta del servidor inesperada al subir archivos.');
+      }
+
+      setUploadedPeticionFiles((prev) => [...prev, ...(data.files ?? [])]);
+    } catch (error) {
+      await Swal.fire(
+        'Error al subir archivos',
+        error instanceof Error ? error.message : 'Error inesperado.',
+        'error'
+      );
+
+      setFilePreviews((prev) =>
+        prev.filter((preview) => !previews.some((item) => item.id === preview.id))
+      );
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
+  function formatBytes(bytes: number) {
+    const MB = 1024 * 1024;
+    const GB = 1024 * MB;
+
+    if (bytes >= GB) return `${(bytes / GB).toFixed(2)} GB`;
+    if (bytes >= MB) return `${(bytes / MB).toFixed(2)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+
+    return `${bytes} B`;
+  }
+
+  function getFileIcon(file: File | UploadedPeticionFile) {
+    const type = 'type' in file ? file.type : file.mimeType;
+    const name = 'name' in file ? file.name : file.originalName;
+
+    if (type.startsWith('image/')) return '🖼️';
+    if (type.startsWith('video/')) return '🎬';
+    if (name.match(/\.(zip|rar|7z|tar|gz)$/i)) return '🗜️';
+    if (name.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)$/i)) return '📄';
+
+    return '📎';
+  }
+
+  // ---------------- FIN DE BLOQUE DE ARCHIVOS A SUBIR ---------------- 
 
   function toSqlTime(date: Date) {
     const hh = pad(date.getHours());
@@ -387,6 +619,15 @@ export default function NuevaPeticionPage() {
       return;
     }
 
+    if (uploadingFiles) {
+      await Swal.fire(
+        'Archivos en proceso',
+        'Espera a que terminen de subirse los archivos.',
+        'warning'
+      );
+      return;
+    }
+
     const confirm = await Swal.fire({
       title: '¿Deseas enviar el formulario ahora?',
       text: 'No podrás editar los campos nuevamente.',
@@ -417,6 +658,7 @@ export default function NuevaPeticionPage() {
           domicilio_slot: usarDomicilio ? Number(domicilioSlot) : null,
           fecha_deseada: toSqlDateOnly(fechaDeseada),
           hora_cita: usaHoraCita ? toSqlTime(fechaDeseada) : null,
+          archivos_subidos: uploadedPeticionFiles,
         }),
       });
 
@@ -440,6 +682,7 @@ export default function NuevaPeticionPage() {
       router.replace(`/formularios/${pagoId}`);
     } finally {
       setSending(false);
+      setUploadingFiles(false);
     }
   }
 
@@ -852,12 +1095,93 @@ export default function NuevaPeticionPage() {
           )}
         </div>
 
+        <div className="rounded-xl border border-cnt-border bg-cnt-dark p-4">
+          <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+            Adjuntar archivos relacionados (opcional)
+          </label>
+
+          <p className="text-xs text-gray-500 mb-2">
+            Puedes adjuntar varias imágenes, documentos, videos o archivos comprimidos relacionados con tu petición. El tamaño máximo por archivo varía según el tipo.
+          </p>
+          <p className="text-xs text-gray-500 mb-1">
+              Imagen: 25 MB
+          </p>
+          <p className="text-xs text-gray-500 mb-1">
+              Documento: 100 MB
+          </p>
+          <p className="text-xs text-gray-500 mb-1">
+              Video: 1 GB
+          </p>
+          <p className="text-xs text-gray-500 mb-3">
+              ZIP: 500 MB
+          </p>
+          <input
+            type="file"
+            multiple
+            accept={ACCEPTED_FILES}
+            onChange={(e) => {
+              handleFilesSelected(e.target.files);
+              e.currentTarget.value = '';
+            }}
+            disabled={uploadingFiles}
+            className="w-full bg-cnt-surface border border-cnt-border text-gray-400 file:mr-4 file:border-0 file:bg-cnt-red file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-red-700 rounded-lg px-3 py-2 text-sm cursor-pointer file:cursor-pointer disabled:opacity-60"
+          />
+
+          {uploadingFiles && (
+            <p className="mt-3 text-xs text-blue-300">
+              Subiendo archivos...
+            </p>
+          )}
+
+          {uploadedPeticionFiles.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-gray-400 uppercase tracking-widest">
+                Archivos listos para enviar
+              </p>
+
+              {uploadedPeticionFiles.map((archivo) => (
+                <div
+                  key={archivo.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-cnt-border bg-cnt-surface px-3 py-2"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-2xl">
+                      {iconForKind(archivo.kind)}
+                    </span>
+
+                    <div className="min-w-0">
+                      <p className="text-sm text-white truncate">
+                        {archivo.originalName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {archivo.kind} · {formatBytes(archivo.size)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedPeticionFiles((prev) =>
+                        prev.filter((item) => item.id !== archivo.id)
+                      );
+                    }}
+                    className="text-xs text-red-300 hover:text-red-200 cursor-pointer"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button
           type="submit"
           disabled={sending}
           className="cursor-pointer mt-2 w-full bg-cnt-red border border-cnt-border hover:bg-red-700 disabled:bg-red-900 text-white py-3 rounded-lg text-sm font-semibold transition-all"
         >
-          {sending ? 'Enviando...' : 'Enviar petición'}
+          {uploadingFiles ? 'Subiendo archivos...' : sending ? 'Enviando...' : 'Enviar petición'}
         </button>
       </form>
     </div>

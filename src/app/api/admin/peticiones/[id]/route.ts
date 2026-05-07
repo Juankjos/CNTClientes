@@ -7,6 +7,26 @@ import type { RowDataPacket } from 'mysql2';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
+function parseArchivosSubidos(value: unknown) {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed;
+}
+
 const hasOwn = (obj: Record<string, unknown>, key: string) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -74,6 +94,24 @@ function combineDateAndTime(dateValue: unknown, timeValue: unknown) {
   return `${date} ${time}`;
 }
 
+type DomicilioKey = 'domicilio_1' | 'domicilio_2' | 'domicilio_3';
+
+type AdminPeticionRow = RowDataPacket & {
+  domicilio_1?: string | null;
+  domicilio_2?: string | null;
+  domicilio_3?: string | null;
+  archivos_subidos?: unknown;
+};
+
+function getDomicilioValue(row: AdminPeticionRow, slot: number): string | null {
+  if (![1, 2, 3].includes(slot)) return null;
+
+  const key = `domicilio_${slot}` as DomicilioKey;
+  const value = row[key];
+
+  return value ? String(value) : null;
+}
+
 export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -91,7 +129,7 @@ export async function GET(
 
     const { id } = await ctx.params;
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const [rows] = await pool.execute<AdminPeticionRow[]>(
         `
         SELECT
             p.*,
@@ -123,13 +161,18 @@ export async function GET(
       return NextResponse.json({ error: 'Petición no encontrada' }, { status: 404 });
     }
 
-    const peticion = rows[0];
+    const rawPeticion = rows[0];
+
+    const peticion = {
+      ...rawPeticion,
+      archivos_subidos: parseArchivosSubidos(rawPeticion.archivos_subidos),
+    };
 
     const domiciliosDisponibles = [1, 2, 3]
       .map((slot) => ({
         slot,
         label: `Domicilio ${slot}`,
-        value: peticion[`domicilio_${slot}`] ?? null,
+        value: getDomicilioValue(rawPeticion, slot),
       }))
       .filter((item) => Boolean(item.value));
 
@@ -175,7 +218,7 @@ export async function PATCH(
     const { id } = await ctx.params;
     const body = (await req.json()) as Record<string, unknown>;
 
-    const [rows] = await pool.execute<RowDataPacket[]>(
+    const [rows] = await pool.execute<AdminPeticionRow[]>(
       `
       SELECT
         p.*,
@@ -247,7 +290,7 @@ export async function PATCH(
         return NextResponse.json({ error: 'Domicilio inválido.' }, { status: 400 });
       }
 
-      nextDomicilioTexto = current[`domicilio_${Number(nextDomicilioSlot)}`] ?? null;
+      nextDomicilioTexto = getDomicilioValue(current, Number(nextDomicilioSlot));
 
       if (!nextDomicilioTexto) {
         return NextResponse.json(
@@ -407,9 +450,16 @@ export async function PATCH(
       [id]
     );
 
+    const updatedPeticion = updatedRows[0]
+      ? {
+          ...updatedRows[0],
+          archivos_subidos: parseArchivosSubidos(updatedRows[0].archivos_subidos),
+        }
+      : null;
+
     return NextResponse.json({
       ok: true,
-      peticion: updatedRows[0] ?? null,
+      peticion: updatedPeticion,
     });
   } catch (error) {
     console.error('[PATCH /api/admin/peticiones/[id]]', error);

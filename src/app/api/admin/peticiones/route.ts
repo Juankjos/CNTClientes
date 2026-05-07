@@ -6,6 +6,26 @@ import type { RowDataPacket } from 'mysql2';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
+function parseArchivosSubidos(value: unknown) {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
@@ -57,6 +77,13 @@ export async function GET(req: NextRequest) {
         p.estatus,
         p.created_at,
         p.fecha_deseada,
+        p.fecha_fin,
+        p.rango_dias,
+        p.usa_hora_cita,
+        p.hora_cita,
+        p.archivos_subidos,
+        p.archivos_eliminados_at,
+        p.archivos_limpieza_error,
         p.categoria,
         c.titulo,
         COALESCE(
@@ -90,8 +117,18 @@ export async function GET(req: NextRequest) {
 
     const total = Number(countRows[0]?.total ?? 0);
 
+    const peticiones = rows.map((row) => {
+      const archivos = parseArchivosSubidos(row.archivos_subidos);
+
+      return {
+        ...row,
+        archivos_subidos: archivos,
+        archivos_count: archivos.length,
+      };
+    });
+
     return NextResponse.json({
-      peticiones: rows,
+      peticiones,
       pagination: {
         page,
         limit,

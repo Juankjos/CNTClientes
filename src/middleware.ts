@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/verify-email',
+  '/api/cron/peticiones/cleanup-archivos',
 ];
 
 const ADMIN_PATHS = ['/admin', '/api/admin'];
