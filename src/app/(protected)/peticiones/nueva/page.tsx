@@ -847,7 +847,7 @@ export default function NuevaPeticionPage() {
         <div>
           <div className="flex items-center justify-between gap-4 mb-3">
             <label className="text-xs text-gray-400 uppercase tracking-widest">
-              ¿Elegir una de tus ubicaciones? (Si eliges no, esta información no se solicitará y se asumirá que la actividad no requiere una ubicación específica.)
+              ¿Elegir una de tus ubicaciones? (Si eliges no, esta información no se solicitará y se asumirá que la actividad no requiere una ubicación específica, o bien se tomará la ubicación que opcionalmente colocaste en la descripción.)
             </label>
 
             <button

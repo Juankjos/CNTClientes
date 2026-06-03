@@ -196,7 +196,7 @@ function getFechasOmitidasPeticion(peticion: any): Array<{ fecha: string; motivo
 }
 
 export default function AdminPage() {
-  const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('users');
+  const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('peticiones');
 
   // --- Users state ---
   const [users, setUsers] = useState<any[]>([]);
@@ -727,7 +727,7 @@ export default function AdminPage() {
       </div>
 
       <div className="flex gap-1 mb-6 bg-cnt-surface border border-cnt-border rounded-lg p-1 w-fit">
-        {(['users', 'pagos', 'peticiones', 'logs'] as const).map((t) => (
+        {(['peticiones', 'users', 'pagos', 'logs'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}

@@ -5,19 +5,48 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiPath } from '@/lib/api-path';
 
+type PeticionStatus = 'pendiente' | 'aceptada' | 'rechazada';
+
 type FormularioItem = {
   pago_id: number;
   catalogo_id: number;
   servicio: string;
   estatus: 'pendiente' | 'pagado' | 'cancelado' | 'reembolsado';
   peticion_id: number | null;
+  peticion_estatus: PeticionStatus | null;
+  peticion_created_at: string | null;
+  peticion_motivo: string | null;
   tiene_peticion: boolean;
 };
+
+const FORMULARIO_STATUS_FILTERS = [
+  { value: '', label: 'Todas' },
+  { value: 'pendiente', label: 'Pendientes' },
+  { value: 'aceptada', label: 'Aceptadas' },
+  { value: 'rechazada', label: 'Rechazadas' },
+] as const;
+
+type FormularioStatusFiltro = (typeof FORMULARIO_STATUS_FILTERS)[number]['value'];
+
+function formatFechaEnviado(value: unknown) {
+  if (!value) return '—';
+
+  const date = new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    hour12: true,
+  }).format(date);
+}
 
 export default function MisFormulariosPage() {
   const router = useRouter();
   const [items, setItems] = useState<FormularioItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [formularioStatus, setFormularioStatus] = useState<FormularioStatusFiltro>('');
 
   useEffect(() => {
     fetch(apiPath('/api/formularios'))
@@ -31,6 +60,18 @@ export default function MisFormulariosPage() {
         setLoading(false);
       });
   }, []);
+
+  const getFormularioStatus = (item: FormularioItem): PeticionStatus => {
+    if (!item.tiene_peticion) return 'pendiente';
+
+    return item.peticion_estatus ?? 'pendiente';
+  };
+
+  const filteredItems = items.filter((item) => {
+    if (!formularioStatus) return true;
+
+    return getFormularioStatus(item) === formularioStatus;
+  });
 
   if (loading) {
     return (
@@ -50,14 +91,34 @@ export default function MisFormulariosPage() {
         <h1 className="font-display text-3xl text-white">Mis Formularios</h1>
       </div>
 
+      <div className="mb-5 flex flex-wrap gap-2 items-center">
+        {FORMULARIO_STATUS_FILTERS.map((item) => (
+          <button
+            key={item.value || 'all'}
+            onClick={() => setFormularioStatus(item.value)}
+            className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs transition-colors border ${
+              formularioStatus === item.value
+                ? 'border-cnt-red bg-red-950/30 text-white'
+                : 'border-cnt-border text-gray-500 hover:text-white'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+
+        <span className="px-3 py-1.5 text-gray-600 text-xs">
+          {filteredItems.length} registros
+        </span>
+      </div>
+
       <div className="space-y-4">
-        {items.length === 0 && (
+        {filteredItems.length === 0 && (
           <div className="bg-cnt-surface border border-cnt-border rounded-xl p-6 text-gray-400">
             No tienes formularios disponibles.
           </div>
         )}
 
-        {items.map((item) => {
+        {filteredItems.map((item) => {
           const enabled = item.estatus === 'pagado';
           const hasPeticion = item.tiene_peticion;
 
@@ -71,14 +132,32 @@ export default function MisFormulariosPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-white font-semibold">{item.servicio}</h2>
+
+                  {hasPeticion && item.peticion_motivo && (
+                    <p className="text-sm text-gray-300 mt-1">
+                      Motivo: {item.peticion_motivo}
+                    </p>
+                  )}
+
                   <p className="text-sm text-gray-500 mt-1">
-                    Estatus de pago: {item.estatus}
+                    Estatus de Pago: {item.estatus}
                   </p>
 
                   {hasPeticion && (
-                    <p className="text-xs text-green-400 mt-2">
-                      Ya enviaste este formulario.
-                    </p>
+                    <>
+
+                      <p className="text-sm text-gray-500 mt-1">
+                        Estatus de proceso de Petición: {item.peticion_estatus}
+                      </p>
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        Fecha de envío de formulario: {formatFechaEnviado(item.peticion_created_at)}
+                      </p>
+
+                      <p className="text-xs text-green-400 mt-2">
+                        Ya enviaste este formulario.
+                      </p>
+                    </>
                   )}
                 </div>
 

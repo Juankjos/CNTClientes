@@ -317,10 +317,10 @@ export default function CatalogDetailPage() {
                     </div>
                   )}
 
-                  {bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0 && (
+                  {/* {bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0 && (
                     <div>
                       <p className="text-white font-semibold">
-                        Se omiten las siguientes fechas:
+                        Actualmente se omiten las siguientes fechas:
                       </p>
 
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -334,7 +334,7 @@ export default function CatalogDetailPage() {
                         ))}
                       </div>
                     </div>
-                  )}
+                  )} */}
                 </div>
 
                 <p className="text-xs text-gray-500 mt-3">

@@ -30,7 +30,8 @@ export async function GET() {
             c.categoria,
 
             pc.id AS peticion_id,
-            pc.motivo,
+            pc.estatus AS peticion_estatus,
+            pc.motivo AS peticion_motivo,
             pc.descripcion AS peticion_descripcion,
             pc.usar_domicilio,
             pc.domicilio_slot,
@@ -47,7 +48,9 @@ export async function GET() {
             ON pc.pago_id = p.id
 
         WHERE cc.usuario_id = ?
-        ORDER BY p.created_at DESC
+        ORDER BY
+            CASE WHEN pc.id IS NULL THEN 0 ELSE 1 END ASC,
+            COALESCE(pc.created_at, p.pagado_at, p.created_at) DESC
         `,
         [user.id]
     );
