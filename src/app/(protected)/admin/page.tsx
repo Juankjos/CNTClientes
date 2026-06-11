@@ -195,6 +195,37 @@ function getFechasOmitidasPeticion(peticion: any): Array<{ fecha: string; motivo
   });
 }
 
+type ToggleSwitchProps = {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+};
+
+function ToggleSwitch({ checked, onChange, disabled = false }: ToggleSwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+      } ${
+        checked
+          ? 'border-[#E34234] bg-[#E34234] hover:border-[#c9362a] hover:bg-[#c9362a]'
+          : 'border-cnt-border bg-cnt-surface hover:border-gray-500'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          checked ? 'translate-x-5' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function AdminPage() {
   const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('peticiones');
 
@@ -237,6 +268,9 @@ export default function AdminPage() {
   const [reviewDomicilios, setReviewDomicilios] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState<ReviewForm>(emptyReviewForm);
   const [sendingReporteros, setSendingReporteros] = useState(false);
+
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
+  const [paymentsSettingLoading, setPaymentsSettingLoading] = useState(false);
 
   // --- Create user state ---
   const emptyCreateUserForm = {
@@ -395,6 +429,21 @@ export default function AdminPage() {
 
     return `https://wa.me/${normalized}`;
   };
+
+  const fetchPaymentsSetting = useCallback(async () => {
+    try {
+      const res = await fetch(apiPath('/api/admin/settings/payments'));
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      setPaymentsEnabled(Boolean(data.payments_enabled));
+    } catch (error) {
+      console.error('[fetchPaymentsSetting]', error);
+    }
+  }, []);
 
   function pad(value: number) {
     return String(value).padStart(2, '0');
@@ -657,6 +706,67 @@ export default function AdminPage() {
     setReviewEditing(false);
   }
 
+  async function handleTogglePayments(checked: boolean) {
+    const confirm = await Swal.fire({
+      title: checked ? '¿Habilitar pagos?' : '¿Deshabilitar pagos?',
+      text: checked
+        ? 'Los clientes podrán generar pagos nuevamente.'
+        : 'Los clientes no podrán generar pagos mientras esta opción esté desactivada.',
+      icon: checked ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonText: checked ? 'Sí, habilitar' : 'Sí, deshabilitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: checked ? '#16a34a' : '#dc2626',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setPaymentsSettingLoading(true);
+
+      const previousValue = paymentsEnabled;
+      setPaymentsEnabled(checked);
+
+      const res = await fetch(apiPath('/api/admin/settings/payments'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payments_enabled: checked }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setPaymentsEnabled(previousValue);
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      await Swal.fire({
+        title: checked ? 'Pagos habilitados' : 'Pagos deshabilitados',
+        text: checked
+          ? 'Los clientes ya pueden generar pagos.'
+          : 'Los clientes verán un aviso cuando intenten pagar.',
+        icon: 'success',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    } catch (error) {
+      await Swal.fire({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'No se pudo actualizar la configuración.',
+        icon: 'error',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    } finally {
+      setPaymentsSettingLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (tab === 'users') fetchUsers();
   }, [tab, fetchUsers]);
@@ -672,6 +782,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'peticiones') fetchPeticiones();
   }, [tab, fetchPeticiones]);
+
+  useEffect(() => {
+    fetchPaymentsSetting();
+  }, [fetchPaymentsSetting]);
 
   async function toggleUser(id: number, activo: number) {
     await fetch(apiPath(`/api/admin/users/${id}`), {
@@ -710,19 +824,30 @@ export default function AdminPage() {
           <h1 className="font-display text-3xl text-white">Administrador CNT</h1>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="flex items-center gap-3 rounded-xl border border-cnt-border bg-cnt-surface px-4 py-2">
+            <div className="text-right">
+              <p className="text-xs text-gray-400 uppercase tracking-widest">
+                Pagos del catálogo
+              </p>
+              <p className={`text-sm font-semibold ${paymentsEnabled ? 'text-green-300' : 'text-red-300'}`}>
+                {paymentsEnabled ? 'Habilitados' : 'Deshabilitados'}
+              </p>
+            </div>
+
+            <ToggleSwitch
+              checked={paymentsEnabled}
+              disabled={paymentsSettingLoading}
+              onChange={handleTogglePayments}
+            />
+          </div>
+
           <Link
             href="/admin/catalog"
             className="px-4 py-2 bg-yellow-900 border border-cnt-border text-yellow-300 hover:text-white rounded-lg text-sm transition-colors"
           >
             Gestionar Catálogo
           </Link>
-          {/* <Link
-            href="/catalog"
-            className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
-          >
-            ← Portal
-          </Link> */}
         </div>
       </div>
 

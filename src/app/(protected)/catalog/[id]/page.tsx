@@ -21,8 +21,9 @@ export default function CatalogDetailPage() {
   const [item, setItem]     = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying]   = useState(false);
-  const [method, setMethod]   = useState('transferencia');
+  const [method] = useState('bbva');
   const [msg, setMsg]         = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
   const BADGES: Record<string, string> = {
     reportaje:  'bg-blue-900 text-blue-300',
     noticia:    'bg-green-900 text-green-300',
@@ -119,7 +120,32 @@ export default function CatalogDetailPage() {
       .then(d => { setItem(d); setLoading(false); });
   }, [id]);
 
+  useEffect(() => {
+    fetch(apiPath('/api/settings/payments'))
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && typeof data.payments_enabled === 'boolean') {
+          setPaymentsEnabled(data.payments_enabled);
+        }
+      })
+      .catch(() => {
+        setPaymentsEnabled(true);
+      });
+  }, []);
+
   async function handlePay() {
+    if (!paymentsEnabled) {
+      await Swal.fire({
+        title: 'Pagos deshabilitados',
+        text: 'Lo sentimos, los pagos están deshabilitados por el momento. Contáctate con un asesor para notificar el problema.',
+        icon: 'info',
+        background: '#111827',
+        color: '#ffffff',
+        confirmButtonColor: '#dc2626',
+      });
+
+      return;
+    }
     const result = await Swal.fire({
       title: '¿Continuar?',
       text: 'Estás a punto de proceder al pago de este producto. ¿Continuar?',
@@ -152,35 +178,42 @@ export default function CatalogDetailPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
+        if (res.status === 503 || data?.code === 'PAYMENTS_DISABLED') {
+          await Swal.fire({
+            title: 'Pagos deshabilitados',
+            text:
+              data?.error ||
+              'Lo sentimos, los pagos están deshabilitados por el momento. Contáctate con un asesor para notificar el problema.',
+            icon: 'info',
+            background: '#111827',
+            color: '#ffffff',
+            confirmButtonColor: '#dc2626',
+          });
+
+          setPaymentsEnabled(false);
+          return;
+        }
+
         setMsg({
           type: 'err',
-          text: data?.error ?? `Error ${res.status} procesando el pago`,
+          text:
+            data?.detail
+              ? `${data?.error ?? 'Error al generar pago'}: ${data.detail}`
+              : data?.error ?? `Error ${res.status} procesando el pago`,
+        });
+
+        return;
+      }
+
+      if (!data?.payment_url) {
+        setMsg({
+          type: 'err',
+          text: 'BBVA no regresó una URL de pago válida.',
         });
         return;
       }
 
-      const categoria = normalizeCategoria(item?.categoria);
-      const requierePeticion =
-        categoria === 'noticia' ||
-        categoria === 'reportaje' ||
-        categoria === 'entrevista' ||
-        categoria === 'especial';
-
-      await Swal.fire({
-        title: 'Pago registrado',
-        text: `Referencia: ${data.referencia}`,
-        icon: 'success',
-        background: '#111827',
-        color: '#ffffff',
-        confirmButtonColor: '#16a34a',
-      });
-
-      if (requierePeticion) {
-        router.push(`/peticiones/nueva?pago_id=${data.pago_id}&catalogo_id=${id}`);
-        return;
-      }
-
-      router.push(`/payments/${data.pago_id}`);
+      window.location.assign(data.payment_url);
     } catch (error) {
       setMsg({
         type: 'err',
@@ -407,6 +440,8 @@ export default function CatalogDetailPage() {
           >
             {paying ? (
               'Procesando...'
+            ) : !paymentsEnabled ? (
+              'Pagos deshabilitados temporalmente'
             ) : item.ya_pagado > 0 ? (
               Number(item.precio) === 0
                 ? 'Acceder nuevamente'

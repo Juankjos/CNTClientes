@@ -45,16 +45,16 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT
           p.*,
-          c.titulo,
-          c.descripcion,
-          c.categoria,
-          c.imagen,
-          c.archivo,
+          COALESCE(p.catalogo_titulo, c.titulo) AS titulo,
+          COALESCE(p.catalogo_descripcion, c.descripcion) AS descripcion,
+          COALESCE(p.catalogo_categoria, c.categoria) AS categoria,
+          COALESCE(p.catalogo_imagen, c.imagen) AS imagen,
+          COALESCE(p.catalogo_archivo, c.archivo) AS archivo,
           cl.nombre,
           cl.apellidos,
           cl.email
         FROM pagos_clientes p
-        INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
+        LEFT JOIN catalogo_clientes c ON c.id = p.catalogo_id
         INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
         WHERE p.id = ?
           AND cl.usuario_id = ?

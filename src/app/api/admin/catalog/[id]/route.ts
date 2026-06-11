@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { pool } from '@/lib/db';
-import type { ResultSetHeader } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 const VALID_CATEGORIAS = new Set(['reportaje', 'noticia', 'entrevista', 'especial']);
 
@@ -164,6 +164,7 @@ export async function PUT(
 }
 
 // DELETE - eliminar item
+// DELETE - eliminar item permanentemente solo si no tiene relaciones
 export async function DELETE(
     _req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -185,14 +186,62 @@ export async function DELETE(
             );
         }
 
-        await pool.execute<ResultSetHeader>(
+        const [relationRows] = await pool.execute<RowDataPacket[]>(
+            `
+            SELECT
+                (SELECT COUNT(*) FROM pagos_clientes WHERE catalogo_id = ?) AS pagos_count,
+                (SELECT COUNT(*) FROM peticiones_clientes WHERE catalogo_id = ?) AS peticiones_count
+            `,
+            [catalogoId, catalogoId]
+        );
+
+        const pagosCount = Number(relationRows[0]?.pagos_count ?? 0);
+        const peticionesCount = Number(relationRows[0]?.peticiones_count ?? 0);
+        const tieneRelaciones = pagosCount > 0 || peticionesCount > 0;
+
+        if (tieneRelaciones) {
+            return NextResponse.json(
+                {
+                    error: 'No se recomienda eliminar permanentemente este item. Puedes Editarlo o Desactivarlo al público.',
+                    code: 'CATALOGO_CON_RELACIONES',
+                    relaciones: {
+                        pagos: pagosCount,
+                        peticiones: peticionesCount,
+                    },
+                },
+                { status: 409 }
+            );
+        }
+
+        const [result] = await pool.execute<ResultSetHeader>(
             'DELETE FROM catalogo_clientes WHERE id = ?',
             [catalogoId]
         );
 
+        if (result.affectedRows === 0) {
+            return NextResponse.json(
+                { error: 'Item no encontrado' },
+                { status: 404 }
+            );
+        }
+
         return NextResponse.json({ ok: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error('[DELETE /api/admin/catalog/[id]] Error:', error);
+
+        if (
+            error?.code === 'ER_ROW_IS_REFERENCED' ||
+            error?.code === 'ER_ROW_IS_REFERENCED_2'
+        ) {
+            return NextResponse.json(
+                {
+                    error: 'No se recomienda eliminar permanentemente este item. Puedes Editarlo o Desactivarlo al público.',
+                    code: 'CATALOGO_CON_RELACIONES',
+                },
+                { status: 409 }
+            );
+        }
+
         return NextResponse.json(
             { error: 'Error interno al eliminar item' },
             { status: 500 }

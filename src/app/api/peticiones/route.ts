@@ -50,6 +50,28 @@ type UploadedPeticionFile = {
   url: string;
 };
 
+function parseJsonObject(value: unknown): Record<string, any> | null {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+
+  return parsed as Record<string, any>;
+}
+
 const UPLOAD_ROOT = process.env.UPLOAD_DIR;
 
 if (!UPLOAD_ROOT) {
@@ -292,6 +314,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
+    if (session.user.rol !== 'cliente') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     const rawPage = req.nextUrl.searchParams.get('page');
     const parsedPage = Number.parseInt(rawPage ?? '1', 10);
     const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -329,6 +355,8 @@ export async function GET(req: NextRequest) {
         p.id,
         p.pago_id,
         p.catalogo_id,
+        p.catalogo_titulo,
+        p.catalogo_precio,
         p.categoria,
         p.motivo,
         p.descripcion,
@@ -337,6 +365,7 @@ export async function GET(req: NextRequest) {
         p.domicilio_texto,
         p.fecha_deseada,
         p.fecha_fin,
+        p.usa_rango_fechas,
         p.rango_dias,
         p.usa_hora_cita,
         p.hora_cita,
@@ -347,9 +376,9 @@ export async function GET(req: NextRequest) {
         p.comentario_admin,
         p.created_at,
         p.updated_at,
-        c.titulo
+        COALESCE(p.catalogo_titulo, c.titulo) AS titulo
       FROM peticiones_clientes p
-      INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
+      LEFT JOIN catalogo_clientes c ON c.id = p.catalogo_id
       ${whereSql}
       ORDER BY p.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -396,6 +425,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
+    if (session.user.rol !== 'cliente') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     const body = await req.json();
 
     const {
@@ -410,9 +443,29 @@ export async function POST(req: NextRequest) {
       archivos_subidos,
     } = body;
 
-    if (!pago_id || !catalogo_id || !motivo || !descripcion || !fecha_deseada) {
+    const pagoId = Number(pago_id);
+    const catalogoId = Number(catalogo_id);
+
+    if (
+      !Number.isInteger(pagoId) ||
+      pagoId <= 0 ||
+      !Number.isInteger(catalogoId) ||
+      catalogoId <= 0 ||
+      !motivo ||
+      !descripcion ||
+      !fecha_deseada
+    ) {
       return NextResponse.json(
         { error: 'Faltan campos obligatorios.' },
+        { status: 400 }
+      );
+    }
+
+    const fechaInicio = toDateOnly(fecha_deseada);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)) {
+      return NextResponse.json(
+        { error: 'fecha_deseada debe tener formato YYYY-MM-DD.' },
         { status: 400 }
       );
     }
@@ -430,6 +483,7 @@ export async function POST(req: NextRequest) {
 
     const cliente = clienteRows[0];
     const clienteId = Number(cliente.id);
+
     let archivosSubidos: UploadedPeticionFile[] = [];
 
     try {
@@ -444,24 +498,56 @@ export async function POST(req: NextRequest) {
     }
 
     const [pagoRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id, catalogo_id, estatus
-        FROM pagos_clientes
-        WHERE id = ? AND cliente_id = ?`,
-      [pago_id, clienteId]
+      `SELECT
+          p.id,
+          p.catalogo_id,
+          p.estatus,
+          p.monto,
+
+          p.catalogo_titulo,
+          p.catalogo_descripcion,
+          p.catalogo_categoria,
+          p.catalogo_imagen,
+          p.catalogo_archivo,
+          p.catalogo_snapshot,
+
+          c.titulo AS live_titulo,
+          c.descripcion AS live_descripcion,
+          c.categoria AS live_categoria,
+          c.precio AS live_precio,
+          c.imagen AS live_imagen,
+          c.archivo AS live_archivo,
+          c.usa_rango_fechas AS live_usa_rango_fechas,
+          c.rango_dias AS live_rango_dias,
+          c.usa_hora_cita AS live_usa_hora_cita,
+          c.bloquea_sabado AS live_bloquea_sabado,
+          c.bloquea_domingo AS live_bloquea_domingo,
+          c.bloquea_dias_festivos AS live_bloquea_dias_festivos,
+          c.incluye_fines_semana AS live_incluye_fines_semana,
+          c.incluye_dias_festivos AS live_incluye_dias_festivos,
+          c.bloquea_fechas_personalizadas AS live_bloquea_fechas_personalizadas,
+          c.fechas_bloqueadas_json AS live_fechas_bloqueadas_json
+        FROM pagos_clientes p
+        LEFT JOIN catalogo_clientes c ON c.id = p.catalogo_id
+        WHERE p.id = ? AND p.cliente_id = ?
+        LIMIT 1`,
+      [pagoId, clienteId]
     );
 
     if (!pagoRows.length) {
       return NextResponse.json({ error: 'Pago no encontrado.' }, { status: 404 });
     }
 
-    if (String(pagoRows[0].estatus) !== 'pagado') {
+    const pago = pagoRows[0];
+
+    if (String(pago.estatus) !== 'pagado') {
       return NextResponse.json(
         { error: 'El formulario solo está disponible cuando el pago está aprobado.' },
         { status: 403 }
       );
     }
 
-    if (Number(pagoRows[0].catalogo_id) !== Number(catalogo_id)) {
+    if (Number(pago.catalogo_id) !== catalogoId) {
       return NextResponse.json(
         { error: 'El pago no corresponde al contenido seleccionado.' },
         { status: 400 }
@@ -470,7 +556,7 @@ export async function POST(req: NextRequest) {
 
     const [dupRows] = await pool.execute<RowDataPacket[]>(
       `SELECT id FROM peticiones_clientes WHERE pago_id = ?`,
-      [pago_id]
+      [pagoId]
     );
 
     if (dupRows.length) {
@@ -483,47 +569,93 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [catalogRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT
-          categoria,
-          usa_rango_fechas,
-          rango_dias,
-          usa_hora_cita,
-          bloquea_sabado,
-          bloquea_domingo,
-          bloquea_dias_festivos,
-          bloquea_fechas_personalizadas,
-          fechas_bloqueadas_json
-        FROM catalogo_clientes
-        WHERE id = ?`,
-      [catalogo_id]
+    const pagoSnapshot = parseJsonObject(pago.catalogo_snapshot);
+
+    const fromPagoSnapshot = (key: string, fallback: unknown = null) => {
+      if (pagoSnapshot && Object.prototype.hasOwnProperty.call(pagoSnapshot, key)) {
+        return pagoSnapshot[key];
+      }
+
+      return fallback;
+    };
+
+    const catalogoTitulo = String(
+      pago.catalogo_titulo ??
+        fromPagoSnapshot('titulo', pago.live_titulo) ??
+        ''
     );
 
-    if (!catalogRows.length) {
-      return NextResponse.json({ error: 'Catálogo no encontrado.' }, { status: 404 });
-    }
+    const catalogoPrecio =
+      pago.monto === null || pago.monto === undefined
+        ? pago.live_precio === null || pago.live_precio === undefined
+          ? null
+          : Number(pago.live_precio)
+        : Number(pago.monto);
 
-    const categoria = String(catalogRows[0].categoria ?? '').toLowerCase();
-    const bloqueaSabado = toBool(catalogRows[0].bloquea_sabado);
-    const bloqueaDomingo = toBool(catalogRows[0].bloquea_domingo);
-    const bloqueaDiasFestivos = toBool(catalogRows[0].bloquea_dias_festivos);
-    const usaRangoFechas = toBool(catalogRows[0].usa_rango_fechas);
-    const bloqueaFechasPersonalizadas = toBool(catalogRows[0].bloquea_fechas_personalizadas);
+    const categoria = String(
+      pago.catalogo_categoria ??
+        fromPagoSnapshot('categoria', pago.live_categoria) ??
+        ''
+    ).toLowerCase();
 
-    const fechasBloqueadas = new Set(
-      bloqueaFechasPersonalizadas
-        ? parseJsonDates(catalogRows[0].fechas_bloqueadas_json)
-        : []
+    const usaRangoFechas = toBool(
+      fromPagoSnapshot('usa_rango_fechas', pago.live_usa_rango_fechas)
     );
-    const rangoDias = catalogRows[0].rango_dias === null
-      ? null
-      : Number(catalogRows[0].rango_dias);
-    const fechaInicio = toDateOnly(fecha_deseada);
 
-    const usaHoraCita = toBool(catalogRows[0].usa_hora_cita);
+    const rangoDiasRaw = fromPagoSnapshot('rango_dias', pago.live_rango_dias);
+
+    const rangoDias =
+      rangoDiasRaw === null || rangoDiasRaw === undefined || rangoDiasRaw === ''
+        ? null
+        : Number(rangoDiasRaw);
+
+    const usaHoraCita = toBool(
+      fromPagoSnapshot('usa_hora_cita', pago.live_usa_hora_cita)
+    );
+
+    const bloqueaSabado = toBool(
+      fromPagoSnapshot('bloquea_sabado', pago.live_bloquea_sabado)
+    );
+
+    const bloqueaDomingo = toBool(
+      fromPagoSnapshot('bloquea_domingo', pago.live_bloquea_domingo)
+    );
+
+    const bloqueaDiasFestivos = toBool(
+      fromPagoSnapshot('bloquea_dias_festivos', pago.live_bloquea_dias_festivos)
+    );
+
+    const incluyeFinesSemana = toBool(
+      fromPagoSnapshot('incluye_fines_semana', pago.live_incluye_fines_semana),
+      true
+    );
+
+    const incluyeDiasFestivos = toBool(
+      fromPagoSnapshot('incluye_dias_festivos', pago.live_incluye_dias_festivos),
+      true
+    );
+
+    const bloqueaFechasPersonalizadas = toBool(
+      fromPagoSnapshot(
+        'bloquea_fechas_personalizadas',
+        pago.live_bloquea_fechas_personalizadas
+      )
+    );
+
+    const fechasBloqueadasArray = bloqueaFechasPersonalizadas
+      ? parseJsonDates(
+          fromPagoSnapshot(
+            'fechas_bloqueadas_json',
+            pago.live_fechas_bloqueadas_json
+          )
+        )
+      : [];
+
+    const fechasBloqueadas = new Set(fechasBloqueadasArray);
+
     const horaCita = usaHoraCita ? normalizeTime(hora_cita) : null;
 
-    if (usaHoraCita && hora_cita && !horaCita) {
+    if (usaHoraCita && !horaCita) {
       return NextResponse.json(
         { error: 'hora_cita debe tener formato HH:mm o HH:mm:ss.' },
         { status: 400 }
@@ -549,10 +681,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const usarDomicilio = toBool(usar_domicilio);
     let domicilioTexto: string | null = null;
     let domicilioSlotValue: number | null = null;
 
-    if (usar_domicilio) {
+    if (usarDomicilio) {
       const slot = Number(domicilio_slot);
 
       if (![1, 2, 3].includes(slot)) {
@@ -569,13 +702,6 @@ export async function POST(req: NextRequest) {
       }
 
       domicilioSlotValue = slot;
-    }
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)) {
-      return NextResponse.json(
-        { error: 'fecha_deseada debe tener formato YYYY-MM-DD.' },
-        { status: 400 }
-      );
     }
 
     let fechaFin: string | null = null;
@@ -611,12 +737,46 @@ export async function POST(req: NextRequest) {
       rangoDiasPeticion = Number(rangoDias);
     }
 
+    const catalogoSnapshotParaPeticion = {
+      ...(pagoSnapshot ?? {}),
+      catalogo_id: Number(pago.catalogo_id),
+      titulo: catalogoTitulo,
+      descripcion:
+        pago.catalogo_descripcion ??
+        fromPagoSnapshot('descripcion', pago.live_descripcion) ??
+        null,
+      categoria,
+      precio: catalogoPrecio,
+      imagen:
+        pago.catalogo_imagen ??
+        fromPagoSnapshot('imagen', pago.live_imagen) ??
+        null,
+      archivo:
+        pago.catalogo_archivo ??
+        fromPagoSnapshot('archivo', pago.live_archivo) ??
+        null,
+      usa_rango_fechas: usaRangoFechas,
+      rango_dias: rangoDias,
+      usa_hora_cita: usaHoraCita,
+      bloquea_sabado: bloqueaSabado,
+      bloquea_domingo: bloqueaDomingo,
+      bloquea_dias_festivos: bloqueaDiasFestivos,
+      incluye_fines_semana: incluyeFinesSemana,
+      incluye_dias_festivos: incluyeDiasFestivos,
+      bloquea_fechas_personalizadas: bloqueaFechasPersonalizadas,
+      fechas_bloqueadas_json: fechasBloqueadasArray,
+      snapshot_peticion_at: new Date().toISOString(),
+    };
+
     const [insert] = await pool.execute<ResultSetHeader>(
       `
       INSERT INTO peticiones_clientes
       (
         cliente_id,
         catalogo_id,
+        catalogo_titulo,
+        catalogo_precio,
+        catalogo_snapshot,
         pago_id,
         categoria,
         motivo,
@@ -626,26 +786,31 @@ export async function POST(req: NextRequest) {
         domicilio_texto,
         fecha_deseada,
         fecha_fin,
+        usa_rango_fechas,
         rango_dias,
         usa_hora_cita,
         hora_cita,
         archivos_subidos,
         estatus
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')
       `,
       [
         clienteId,
-        catalogo_id,
-        pago_id,
+        Number(pago.catalogo_id),
+        catalogoTitulo,
+        catalogoPrecio,
+        JSON.stringify(catalogoSnapshotParaPeticion),
+        pagoId,
         categoria,
         String(motivo).trim(),
         String(descripcion).trim(),
-        usar_domicilio ? 1 : 0,
+        usarDomicilio ? 1 : 0,
         domicilioSlotValue,
         domicilioTexto,
         fechaInicio,
         fechaFin,
+        usaRangoFechas ? 1 : 0,
         rangoDiasPeticion,
         usaHoraCita ? 1 : 0,
         horaCita,
@@ -673,8 +838,19 @@ export async function POST(req: NextRequest) {
       { ok: true, peticion_id: insert.insertId },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('[POST /api/peticiones]', error);
+
+    if (error?.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json(
+        {
+          error: 'Ya existe una petición para este pago.',
+          code: 'PETICION_YA_EXISTE',
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }

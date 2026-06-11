@@ -81,11 +81,13 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       p.monto,
       p.pagado_at,
 
-      c.titulo AS servicio,
-      c.categoria AS catalogo_categoria,
-      c.usa_rango_fechas,
-      c.rango_dias AS catalogo_rango_dias,
-      c.usa_hora_cita AS catalogo_usa_hora_cita,
+      COALESCE(pc.catalogo_titulo, p.catalogo_titulo, c.titulo) AS servicio,
+      COALESCE(pc.categoria, p.catalogo_categoria, c.categoria) AS catalogo_categoria,
+      pc.usa_rango_fechas,
+      pc.rango_dias AS catalogo_rango_dias,
+      pc.usa_hora_cita AS catalogo_usa_hora_cita,
+      pc.catalogo_precio,
+      pc.catalogo_snapshot,
 
       cc.domicilio_1,
       cc.domicilio_2,
@@ -95,7 +97,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       ON p.id = pc.pago_id
     INNER JOIN clientes_clientes cc
       ON cc.id = p.cliente_id
-    INNER JOIN catalogo_clientes c
+    LEFT JOIN catalogo_clientes c
       ON c.id = pc.catalogo_id
     WHERE pc.pago_id = ?
       AND cc.usuario_id = ?

@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
 import type { CatalogoItem, CatalogoFormData } from '@/types';
 import { apiPath } from '@/lib/api-path';
 import DatePicker, { registerLocale } from 'react-datepicker';
@@ -86,6 +87,54 @@ function parseFechasBloqueadas(value: CatalogoItem['fechas_bloqueadas_json']) {
   }
 
   return [];
+}
+
+type ToggleSwitchProps = {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  id?: string;
+  disabled?: boolean;
+  activeLabel?: string;
+  inactiveLabel?: string;
+};
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  id,
+  disabled = false,
+  activeLabel = 'Activo',
+  inactiveLabel = 'Inactivo',
+}: ToggleSwitchProps) {
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
+        disabled
+          ? 'cursor-not-allowed opacity-50'
+          : 'cursor-pointer'
+      } ${
+        checked
+          ? 'border-[#E34234] bg-[#E34234] hover:border-[#c9362a] hover:bg-[#c9362a]'
+          : 'border-cnt-border bg-cnt-surface hover:border-gray-500'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          checked ? 'translate-x-5' : 'translate-x-1'
+        }`}
+      />
+
+      <span className="sr-only">
+        {checked ? activeLabel : inactiveLabel}
+      </span>
+    </button>
+  );
 }
 
 export default function AdminCatalogPage() {
@@ -330,9 +379,76 @@ export default function AdminCatalogPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar este item del catálogo?')) return;
-    await fetch(apiPath(`/api/admin/catalog/${id}`), { method: 'DELETE' });
-    fetchItems();
+    const result = await Swal.fire({
+      title: '¿Estás seguro que quieres eliminarlo?',
+      text: 'Esta acción intentará eliminar permanentemente el item del catálogo.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#374151',
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setLoading(true);
+      setMsg(null);
+
+      const res = await fetch(apiPath(`/api/admin/catalog/${id}`), {
+        method: 'DELETE',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (res.status === 409 || data.code === 'CATALOGO_CON_RELACIONES') {
+          await Swal.fire({
+            title: 'No se puede eliminar permanentemente',
+            text:
+              data.error ||
+              'No se recomienda eliminar permanentemente este item. Puedes Editarlo o Desactivarlo al público.',
+            icon: 'info',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#dc2626',
+          });
+
+          return;
+        }
+
+        await Swal.fire({
+          title: 'Error',
+          text: data.error || 'No se pudo eliminar el item.',
+          icon: 'error',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#dc2626',
+        });
+
+        return;
+      }
+
+      await Swal.fire({
+        title: 'Eliminado',
+        text: 'El item fue eliminado correctamente.',
+        icon: 'success',
+        confirmButtonText: 'Aceptar',
+        confirmButtonColor: '#16a34a',
+      });
+
+      fetchItems();
+    } catch (error: any) {
+      await Swal.fire({
+        title: 'Error inesperado',
+        text: error?.message || 'Ocurrió un error al eliminar el item.',
+        icon: 'error',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#dc2626',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -430,10 +546,7 @@ export default function AdminCatalogPage() {
             </div>
 
               <div className="md:col-span-2 rounded-xl border border-cnt-border bg-cnt-dark p-4 space-y-4">
-                <label
-                  htmlFor="usa_rango_fechas"
-                  className="flex items-center justify-between gap-4 cursor-pointer"
-                >
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-white">
                       ¿Agregar rango de fechas?
@@ -443,13 +556,12 @@ export default function AdminCatalogPage() {
                     </p>
                   </div>
 
-                  <input
+                  <ToggleSwitch
                     id="usa_rango_fechas"
-                    type="checkbox"
                     checked={form.usa_rango_fechas}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-
+                    activeLabel="Rango de fechas activo"
+                    inactiveLabel="Rango de fechas inactivo"
+                    onChange={(checked) => {
                       setForm((f) => ({
                         ...f,
                         usa_rango_fechas: checked,
@@ -469,9 +581,8 @@ export default function AdminCatalogPage() {
                         fechas_bloqueadas: checked ? f.fechas_bloqueadas : [],
                       }));
                     }}
-                    className="h-4 w-4 accent-red-600 cursor-pointer"
                   />
-                </label>
+                </div>
 
                 {form.usa_rango_fechas && (
                   <div className="space-y-5">
@@ -571,22 +682,17 @@ export default function AdminCatalogPage() {
                           </p>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
+                        <ToggleSwitch
+                          checked={form.bloquea_dias_festivos}
+                          activeLabel="Bloqueo de días festivos activo"
+                          inactiveLabel="Bloqueo de días festivos inactivo"
+                          onChange={(checked) =>
                             setForm((f) => ({
                               ...f,
-                              bloquea_dias_festivos: !f.bloquea_dias_festivos,
+                              bloquea_dias_festivos: checked,
                             }))
                           }
-                          className={`cursor-pointer px-3 py-2 rounded-lg text-sm border transition-colors ${
-                            form.bloquea_dias_festivos
-                              ? 'bg-cnt-red border-cnt-red text-white'
-                              : 'bg-cnt-dark border-cnt-border text-gray-300'
-                          }`}
-                        >
-                          {form.bloquea_dias_festivos ? 'Sí' : 'No'}
-                        </button>
+                        />
                       </div>
                     </div>
 
@@ -601,25 +707,18 @@ export default function AdminCatalogPage() {
                           </p>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
+                        <ToggleSwitch
+                          checked={form.bloquea_fechas_personalizadas}
+                          activeLabel="Fechas personalizadas activas"
+                          inactiveLabel="Fechas personalizadas inactivas"
+                          onChange={(checked) =>
                             setForm((f) => ({
                               ...f,
-                              bloquea_fechas_personalizadas: !f.bloquea_fechas_personalizadas,
-                              fechas_bloqueadas: !f.bloquea_fechas_personalizadas
-                                ? f.fechas_bloqueadas
-                                : [],
+                              bloquea_fechas_personalizadas: checked,
+                              fechas_bloqueadas: checked ? f.fechas_bloqueadas : [],
                             }))
                           }
-                          className={`cursor-pointer px-3 py-2 rounded-lg text-sm border transition-colors ${
-                            form.bloquea_fechas_personalizadas
-                              ? 'bg-cnt-red border-cnt-red text-white'
-                              : 'bg-cnt-dark border-cnt-border text-gray-300'
-                          }`}
-                        >
-                          {form.bloquea_fechas_personalizadas ? 'Sí' : 'No'}
-                        </button>
+                        />
                       </div>
 
                       {form.bloquea_fechas_personalizadas && (
@@ -677,10 +776,7 @@ export default function AdminCatalogPage() {
               </div>
 
             <div className="md:col-span-2 rounded-xl border border-cnt-border bg-cnt-dark p-4">
-              <label
-                htmlFor="usa_hora_cita"
-                className="flex items-center justify-between gap-4 cursor-pointer"
-              >
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-white">
                     ¿Agregar hora de cita o lanzamiento?
@@ -691,19 +787,19 @@ export default function AdminCatalogPage() {
                   </p>
                 </div>
 
-                <input
+                <ToggleSwitch
                   id="usa_hora_cita"
-                  type="checkbox"
                   checked={form.usa_hora_cita}
-                  onChange={(e) =>
+                  activeLabel="Hora de cita activa"
+                  inactiveLabel="Hora de cita inactiva"
+                  onChange={(checked) =>
                     setForm((f) => ({
                       ...f,
-                      usa_hora_cita: e.target.checked,
+                      usa_hora_cita: checked,
                     }))
                   }
-                  className="h-4 w-4 accent-red-600 cursor-pointer"
                 />
-              </label>
+              </div>
             </div>
 
             <div>
@@ -745,21 +841,29 @@ export default function AdminCatalogPage() {
               </div>
             )}
 
-            <label
-              htmlFor="activo"
-              className="flex items-center gap-3 rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3 cursor-pointer"
-            >
-              <input
-                type="checkbox"
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Publicado / Activo
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Si está activo, el ítem será visible para los clientes.
+                </p>
+              </div>
+
+              <ToggleSwitch
                 id="activo"
                 checked={form.activo}
-                onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))}
-                className="h-4 w-4 accent-red-600 cursor-pointer"
+                activeLabel="Publicado"
+                inactiveLabel="Inactivo"
+                onChange={(checked) =>
+                  setForm((f) => ({
+                    ...f,
+                    activo: checked,
+                  }))
+                }
               />
-              <span className="text-sm text-gray-300">
-                Publicado / Activo
-              </span>
-            </label>
+            </div>
 
             {msg && (
               <div
@@ -803,7 +907,7 @@ export default function AdminCatalogPage() {
             </h2>
           </div>
 
-          <div className="space-y-3 max-h-[900px] overflow-y-auto pr-1">
+          <div className="space-y-4 max-h-[900px] overflow-y-auto pr-1">
             {items.length === 0 ? (
               <div className="text-center py-16 border border-dashed border-cnt-border rounded-xl bg-cnt-dark">
                 <p className="text-4xl mb-3">🗂️</p>
@@ -813,62 +917,81 @@ export default function AdminCatalogPage() {
               items.map(item => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-4 bg-cnt-dark border border-cnt-border rounded-xl p-4 hover:border-gray-600 transition-colors"
+                  className="bg-cnt-dark border border-cnt-border rounded-xl p-4 hover:border-gray-600 transition-colors"
                 >
-                  <div className="w-20 h-16 bg-cnt-surface rounded-lg overflow-hidden flex-shrink-0">
-                    {item.imagen ? (
-                      <img
-                        src={item.imagen}
-                        alt={item.titulo}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
-                        Sin imagen
+                  <div className="grid grid-cols-[80px_1fr] gap-4">
+                    <div className="w-20 h-16 bg-cnt-surface rounded-lg overflow-hidden flex-shrink-0">
+                      {item.imagen ? (
+                        <img
+                          src={item.imagen}
+                          alt={item.titulo}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+                          Sin imagen
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="font-medium text-white break-words leading-snug">
+                        {item.titulo || 'Sin título'}
+                      </p>
+
+                      <p className="text-sm text-gray-500 mt-1">
+                        {formatCategoria(item.categoria)} · ${formatMoney(item.precio)}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {toBooleanDb(item.usa_rango_fechas) && Number(item.rango_dias) > 0 && (
+                          <span className="inline-flex items-center rounded-full border border-blue-900/60 bg-blue-950/30 px-2 py-0.5 text-xs text-blue-300">
+                            Rango: {Number(item.rango_dias)} día
+                            {Number(item.rango_dias) === 1 ? '' : 's'}
+                          </span>
+                        )}
+
+                        {toBooleanDb(item.usa_hora_cita) && (
+                          <span className="inline-flex items-center rounded-full border border-purple-900/60 bg-purple-950/30 px-2 py-0.5 text-xs text-purple-300">
+                            Permite hora
+                          </span>
+                        )}
+
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs border ${
+                            item.activo
+                              ? 'bg-green-900/50 text-green-300 border-green-800'
+                              : 'bg-gray-800 text-gray-400 border-gray-700'
+                          }`}
+                        >
+                          {item.activo ? 'Activo' : 'Inactivo'}
+                        </span>
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white truncate">{item.titulo}</p>
-                    <p className="text-sm text-gray-500">
-                      {formatCategoria(item.categoria)} · ${formatMoney(item.precio)}
-                    </p>
-                    {toBooleanDb(item.usa_rango_fechas) && Number(item.rango_dias) > 0 && (
-                      <p className="text-xs text-blue-300 mt-1">
-                        Rango de fechas: {Number(item.rango_dias)} día
-                        {Number(item.rango_dias) === 1 ? '' : 's'}
-                      </p>
-                    )}
-                    {toBooleanDb(item.usa_hora_cita) && (
-                      <p className="text-xs text-purple-300 mt-1">
-                        Permite hora de cita o lanzamiento
-                      </p>
-                    )}
-                    <span
-                      className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${
-                        item.activo
-                          ? 'bg-green-900/50 text-green-300 border border-green-800'
-                          : 'bg-gray-800 text-gray-400 border border-gray-700'
-                      }`}
-                    >
-                      {item.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-2 shrink-0">
+                  <div className="mt-4 border-t border-cnt-border pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <button
+                      type="button"
                       onClick={() => handleEdit(item)}
-                      className="text-sm text-white hover:underline text-left cursor-pointer"
+                      className="w-full sm:w-auto rounded-lg border border-cnt-border bg-cnt-surface px-3 py-2 text-sm text-white hover:border-gray-500 transition-colors cursor-pointer"
                     >
                       Editar
                     </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="text-sm text-red-300 hover:underline text-left cursor-pointer"
-                    >
-                      Eliminar
-                    </button>
+
+                    <div className="sm:text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        className="w-full sm:w-auto rounded-lg border border-red-900/60 bg-red-950/30 px-3 py-2 text-sm text-red-300 hover:bg-red-900/40 hover:text-red-200 transition-colors cursor-pointer"
+                      >
+                        Eliminar permanentemente
+                      </button>
+
+                      <p className="mt-1 text-[11px] leading-snug text-gray-500 max-w-xs">
+                        Solo aplica si nunca se ha comprado este ítem.
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))
