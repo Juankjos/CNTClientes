@@ -805,15 +805,6 @@ export default function AdminPage() {
     fetchUsers();
   }
 
-  async function confirmPago(id: number, estatus: string) {
-    await fetch(apiPath(`/api/payments/${id}`), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estatus }),
-    });
-    fetchPagos();
-  }
-
   return (
     <div>
       <div className="mb-8 flex items-start justify-between gap-4">
@@ -1224,7 +1215,7 @@ export default function AdminPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-cnt-border bg-cnt-surface">
-                  {['Referencia', 'Cliente', 'Contenido', 'Monto', 'Método', 'Estatus', 'Fecha', 'Acciones'].map((h) => (
+                  {['Referencia', 'Cliente', 'Contenido', 'Monto', 'Método', 'Estatus', 'Fecha'].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 uppercase tracking-widest">
                       {h}
                     </th>
@@ -1234,7 +1225,7 @@ export default function AdminPage() {
               <tbody className="divide-y divide-cnt-border">
                 {pagos.length === 0 ? (
                   <tr className="bg-cnt-dark">
-                    <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
                       No se encontraron pagos.
                     </td>
                   </tr>
@@ -1261,24 +1252,6 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
                         {new Date(p.created_at).toLocaleDateString('es-MX')}
-                      </td>
-                      <td className="px-4 py-3">
-                        {p.estatus === 'pendiente' && (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => confirmPago(p.id, 'pagado')}
-                              className="cursor-pointer px-2 py-1 bg-green-900/50 border border-green-800 text-green-300 hover:text-green-200 rounded text-xs"
-                            >
-                              Confirmar
-                            </button>
-                            <button
-                              onClick={() => confirmPago(p.id, 'cancelado')}
-                              className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   ))

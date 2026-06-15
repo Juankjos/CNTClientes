@@ -170,6 +170,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN catalogo_clientes c ON c.id = p.catalogo_id
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
       WHERE cl.usuario_id = ?
+        AND p.estatus IN ('pagado', 'reembolsado')
       ORDER BY p.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
@@ -181,6 +182,7 @@ export async function GET(req: NextRequest) {
       FROM pagos_clientes p
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
       WHERE cl.usuario_id = ?
+        AND p.estatus IN ('pagado', 'reembolsado')
     `;
 
     const [countRows] = await pool.execute<RowDataPacket[]>(countSql, [userId]);
@@ -328,25 +330,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ítem no encontrado' }, { status: 404 });
     }
 
-    // Permitir recompra, pero evitar duplicar pagos pendientes
-    const [pendientes] = await pool.execute<RowDataPacket[]>(
-      `SELECT id, referencia
-       FROM pagos_clientes
-       WHERE cliente_id = ? AND catalogo_id = ? AND estatus = 'pendiente'
-       ORDER BY id DESC
-       LIMIT 1`,
-      [clienteId, catalogo_id]
-    );
-
-    if (pendientes.length) {
-      return NextResponse.json(
-        {
-          error: 'Ya tienes un pago pendiente para este contenido. Termínalo o espera antes de generar otro.',
-          referencia: pendientes[0].referencia,
-        },
-        { status: 409 }
-      );
-    }
 
     const referencia = `CNT-${Date.now()}-${randomBytes(4).toString('hex').toUpperCase()}`;
     const catalogo = catRows[0];
@@ -375,144 +358,159 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO pagos_clientes
-        (
-          cliente_id,
-          catalogo_id,
-          catalogo_titulo,
-          catalogo_descripcion,
-          catalogo_categoria,
-          catalogo_imagen,
-          catalogo_archivo,
-          catalogo_snapshot,
-          referencia,
-          monto,
-          metodo_pago,
-          moneda,
-          proveedor,
-          estatus
-        )
-      VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, 'MXN', ?, 'pendiente')`,
+    if (metodoPago !== 'bbva') {
+      return NextResponse.json(
+        { error: 'Método de pago no soportado.' },
+        { status: 400 }
+      );
+    }
+
+    const checkoutRequestPayload = {
+      catalogo_id: Number(catalogo.id),
+      metodo_pago: metodoPago,
+      referencia,
+      monto: Number(monto),
+    };
+
+    const [checkoutResult] = await pool.execute<ResultSetHeader>(
+      `
+      INSERT INTO pagos_checkout_bbva
+      (
+        cliente_id,
+        catalogo_id,
+        referencia,
+        monto,
+        moneda,
+
+        catalogo_titulo,
+        catalogo_descripcion,
+        catalogo_categoria,
+        catalogo_imagen,
+        catalogo_archivo,
+        catalogo_snapshot,
+
+        estatus,
+        request_payload
+      )
+      VALUES (?, ?, ?, ?, 'MXN', ?, ?, ?, ?, ?, ?, 'creado', ?)
+      `,
       [
         clienteId,
-        catalogo.id,
+        Number(catalogo.id),
+        referencia,
+        Number(monto),
+
         catalogo.titulo,
         catalogo.descripcion ?? null,
         catalogo.categoria,
         catalogo.imagen ?? null,
         catalogo.archivo ?? null,
         JSON.stringify(catalogoSnapshot),
-        referencia,
-        monto,
-        metodoPago,
-        metodoPago === 'bbva' ? 'bbva' : null,
+
+        JSON.stringify(checkoutRequestPayload),
       ]
     );
 
-    const pagoId = result.insertId;
+    const checkoutId = Number(checkoutResult.insertId);
 
-    await logAction(
-      session.user.id,
-      'crear_pago',
-      'pagos',
-      `Ref: ${referencia} | Monto: ${monto}`
-    );
+    try {
+      const baseUrl = getPublicBaseUrl(req);
 
-    if (metodoPago === 'bbva') {
-      try {
-        const baseUrl = getPublicBaseUrl(req);
+      const bbvaCharge = await createBbvaRedirectCharge({
+        amount: Number(monto),
+        currency: 'MXN',
+        description: `CNT - ${String(catalogo.titulo).slice(0, 120)}`,
+        orderId: referencia,
+        redirectUrl: `${baseUrl}/api/payments/bbva/return?checkout_id=${checkoutId}`,
+        clientIp: getClientIp(req),
+        customer: {
+          name: clienteNombre,
+          lastName: clienteApellidos || 'Cliente',
+          email: clienteEmail,
+          phone: cleanPhone(cliente?.telefono),
+        },
+      });
 
-        const bbvaCharge = await createBbvaRedirectCharge({
-          amount: Number(monto),
-          currency: 'MXN',
-          description: `CNT - ${String(catalogo.titulo).slice(0, 120)}`,
-          orderId: referencia,
-          redirectUrl: `${baseUrl}/payments/${pagoId}`,
-          clientIp: getClientIp(req),
-          customer: {
-            name: clienteNombre,
-            lastName: clienteApellidos || 'Cliente',
-            email: clienteEmail,
-            phone: cleanPhone(cliente?.telefono),
-          },
-        });
-
-        await pool.execute(
-          `
-          UPDATE pagos_clientes
-          SET
-            proveedor = 'bbva',
-            transaccion_externa = ?,
-            bbva_status = ?,
-            respuesta = ?
-          WHERE id = ?
-          `,
-          [
-            bbvaCharge.transactionId,
-            String(bbvaCharge.charge?.status ?? 'created'),
-            JSON.stringify({
-              ...bbvaCharge.charge,
-              payment_url: bbvaCharge.paymentUrl,
-            }),
-            pagoId,
-          ]
-        );
-
-        return NextResponse.json(
-          {
-            ok: true,
-            provider: 'bbva',
-            pago_id: pagoId,
-            referencia,
-            monto,
+      await pool.execute(
+        `
+        UPDATE pagos_checkout_bbva
+        SET
+          provider_transaction_id = ?,
+          provider_status = ?,
+          payment_url = ?,
+          provider_response = ?,
+          estatus = 'pendiente'
+        WHERE id = ?
+        `,
+        [
+          bbvaCharge.transactionId,
+          String(bbvaCharge.charge?.status ?? 'charge_pending'),
+          bbvaCharge.paymentUrl,
+          JSON.stringify({
+            ...bbvaCharge.charge,
             payment_url: bbvaCharge.paymentUrl,
-            transaccion_externa: bbvaCharge.transactionId,
-          },
-          { status: 201 }
-        );
-      } catch (error) {
-        await pool.execute(
-          `
-          UPDATE pagos_clientes
-          SET
-            proveedor = 'bbva',
-            estatus = 'cancelado',
-            respuesta = ?
-          WHERE id = ?
-          `,
-          [
-            JSON.stringify({
-              error: error instanceof Error ? error.message : String(error),
-            }),
-            pagoId,
-          ]
-        );
+          }),
+          checkoutId,
+        ]
+      );
 
-        console.error('[POST /api/payments] BBVA error:', {
-          pagoId,
+      await logAction(
+        session.user.id,
+        'crear_checkout_bbva',
+        'pagos',
+        `Checkout BBVA ${checkoutId} | Ref: ${referencia} | Monto: ${monto}`
+      );
+
+      return NextResponse.json(
+        {
+          ok: true,
+          provider: 'bbva',
+          checkout_id: checkoutId,
           referencia,
           monto,
-          metodoPago,
-          baseUrl: getPublicBaseUrl(req),
-          redirectUrl: `${getPublicBaseUrl(req)}/payments/${pagoId}`,
-          error: error instanceof Error ? error.message : String(error),
-        });
+          payment_url: bbvaCharge.paymentUrl,
+          transaccion_externa: bbvaCharge.transactionId,
+        },
+        { status: 201 }
+      );
+    } catch (error) {
+      await pool.execute(
+        `
+        UPDATE pagos_checkout_bbva
+        SET
+          estatus = 'fallido',
+          error = ?,
+          provider_response = ?
+        WHERE id = ?
+        `,
+        [
+          error instanceof Error ? error.message : String(error),
+          JSON.stringify({
+            error: error instanceof Error ? error.message : String(error),
+          }),
+          checkoutId,
+        ]
+      );
 
-        return NextResponse.json(
-          {
-            error: 'No se pudo generar la ventana de pago BBVA. Intenta nuevamente o contacta a un asesor.',
-            detail: error instanceof Error ? error.message : String(error),
-          },
-          { status: 502 }
-        );
-      }
+      console.error('[POST /api/payments] BBVA checkout error:', {
+        checkoutId,
+        referencia,
+        monto,
+        metodoPago,
+        baseUrl: getPublicBaseUrl(req),
+        redirectUrl: `${getPublicBaseUrl(req)}/api/payments/bbva/return?checkout_id=${checkoutId}`,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return NextResponse.json(
+        {
+          error: 'No se pudo generar la ventana de pago BBVA. Intenta nuevamente o contacta a un asesor.',
+          detail: error instanceof Error ? error.message : String(error),
+        },
+        { status: 502 }
+      );
     }
 
-    return NextResponse.json(
-      { ok: true, pago_id: pagoId, referencia, monto },
-      { status: 201 }
-    );
   } catch (error) {
     console.error('[POST /api/payments]', error);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });

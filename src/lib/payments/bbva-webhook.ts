@@ -128,51 +128,53 @@ export function extractBbvaChargeInfo(charge: any) {
 }
 
 export function mapBbvaStatusToLocal(rawStatus: string | null): LocalPaymentStatus {
-    const status = String(rawStatus ?? '').trim().toLowerCase();
+  const status = String(rawStatus ?? '').trim().toLowerCase();
 
-    if (
-        [
-            'paid',
-            'pagado',
-            'completed',
-            'complete',
-            'succeeded',
-            'success',
-            'captured',
-            'charge.succeeded',
-            'charge.paid',
-        ].includes(status)
-    ) {
-        return 'pagado';
-    }
+  if (
+    [
+      'paid',
+      'pagado',
+      'completed',
+      'complete',
+      'completed_payment',
+      'charged',
+      'succeeded',
+      'success',
+      'captured',
+      'charge.succeeded',
+      'charge.paid',
+    ].includes(status)
+  ) {
+    return 'pagado';
+  }
 
-    if (
-        [
-            'refunded',
-            'refund',
-            'reembolsado',
-            'charge.refunded',
-        ].includes(status)
-    ) {
-        return 'reembolsado';
-    }
+  if (
+    [
+      'refunded',
+      'refund',
+      'reembolsado',
+      'charge.refunded',
+    ].includes(status)
+  ) {
+    return 'reembolsado';
+  }
 
-    if (
-        [
-            'cancelled',
-            'canceled',
-            'cancelado',
-            'failed',
-            'declined',
-            'rejected',
-            'charge.failed',
-            'charge.cancelled',
-        ].includes(status)
-    ) {
-        return 'cancelado';
-    }
+  if (
+    [
+      'cancelled',
+      'canceled',
+      'cancelado',
+      'failed',
+      'declined',
+      'rejected',
+      'charge.failed',
+      'charge.cancelled',
+    ].includes(status)
+  ) {
+    return 'cancelado';
+  }
 
-    return 'pendiente';
+  return 'pendiente';
 }
 
 export function isMoneyEqual(a: unknown, b: unknown) {

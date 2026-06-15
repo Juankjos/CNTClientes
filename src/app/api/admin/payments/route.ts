@@ -29,15 +29,16 @@ export async function GET(req: NextRequest) {
     const rowsSql = `
       SELECT
         p.*,
-        c.titulo,
-        c.categoria,
-        c.imagen,
+        COALESCE(p.catalogo_titulo, c.titulo) AS titulo,
+        COALESCE(p.catalogo_categoria, c.categoria) AS categoria,
+        COALESCE(p.catalogo_imagen, c.imagen) AS imagen,
         cl.nombre,
         cl.apellidos,
         cl.email
       FROM pagos_clientes p
-      INNER JOIN catalogo_clientes c ON c.id = p.catalogo_id
+      LEFT JOIN catalogo_clientes c ON c.id = p.catalogo_id
       INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
+      WHERE p.estatus IN ('pagado', 'reembolsado')
       ORDER BY p.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
@@ -46,7 +47,8 @@ export async function GET(req: NextRequest) {
 
     const [countRows] = await pool.execute<RowDataPacket[]>(`
       SELECT COUNT(*) AS total
-      FROM pagos_clientes
+      FROM pagos_clientes p
+      WHERE p.estatus IN ('pagado', 'reembolsado')
     `);
 
     const total = Number(countRows[0]?.total ?? 0);
