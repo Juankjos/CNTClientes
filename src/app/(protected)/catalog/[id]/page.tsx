@@ -205,6 +205,20 @@ export default function CatalogDetailPage() {
         return;
       }
 
+      if (data?.free_payment && data?.pago_id) {
+        await Swal.fire({
+          title: 'Contenido gratuito',
+          text: 'Este contenido no requiere pago. Puedes continuar con el formulario.',
+          icon: 'success',
+          background: '#111827',
+          color: '#ffffff',
+          confirmButtonColor: '#dc2626',
+        });
+
+        router.push(`/peticiones/nueva?catalogo_id=${item.id}&pago_id=${data.pago_id}`);
+        return;
+      }
+
       if (!data?.payment_url) {
         setMsg({
           type: 'err',

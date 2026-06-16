@@ -225,18 +225,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const paymentsEnabled = await arePaymentsEnabled();
-
-    if (!paymentsEnabled) {
-      return NextResponse.json(
-        {
-          error: 'Lo sentimos, los pagos están deshabilitados por el momento. Contáctate con un asesor para notificar el problema.',
-          code: 'PAYMENTS_DISABLED',
-        },
-        { status: 503 }
-      );
-    }
-
     const body = await req.json();
     const { catalogo_id, metodo_pago } = body;
 
@@ -336,6 +324,15 @@ export async function POST(req: NextRequest) {
     const monto = catalogo.precio;
     const catalogoSnapshot = buildCatalogoSnapshot(catalogo);
 
+    const montoNumber = Number(monto);
+
+    if (!Number.isFinite(montoNumber) || montoNumber < 0) {
+      return NextResponse.json(
+        { error: 'El monto del ítem no es válido.' },
+        { status: 400 }
+      );
+    }
+
     const metodoPago = String(metodo_pago ?? '').trim().toLowerCase();
     const cliente = clienteRows[0];
 
@@ -355,6 +352,85 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'El cliente no tiene correo electrónico para generar el pago BBVA.' },
         { status: 400 }
+      );
+    }
+
+    if (montoNumber === 0) {
+      const [freeResult] = await pool.execute<ResultSetHeader>(
+        `
+        INSERT INTO pagos_clientes
+          (
+            cliente_id,
+            catalogo_id,
+            catalogo_titulo,
+            catalogo_descripcion,
+            catalogo_categoria,
+            catalogo_imagen,
+            catalogo_archivo,
+            catalogo_snapshot,
+            referencia,
+            monto,
+            metodo_pago,
+            moneda,
+            proveedor,
+            estatus,
+            respuesta,
+            pagado_at
+          )
+        VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, 0, 'gratis', 'MXN', 'sistema', 'pagado', ?, NOW())
+        `,
+        [
+          clienteId,
+          catalogo.id,
+          catalogo.titulo,
+          catalogo.descripcion ?? null,
+          catalogo.categoria,
+          catalogo.imagen ?? null,
+          catalogo.archivo ?? null,
+          JSON.stringify(catalogoSnapshot),
+          referencia,
+          JSON.stringify({
+            tipo: 'gratuito',
+            motivo: 'Ítem de catálogo con precio 0',
+            catalogo_id: Number(catalogo.id),
+            created_at: new Date().toISOString(),
+          }),
+        ]
+      );
+
+      const pagoId = freeResult.insertId;
+
+      await logAction(
+        session.user.id,
+        'crear_pago_gratuito',
+        'pagos',
+        `Pago gratuito ${pagoId} | Ref: ${referencia} | Catálogo: ${catalogo.id}`
+      );
+
+      return NextResponse.json(
+        {
+          ok: true,
+          provider: 'sistema',
+          free_payment: true,
+          pago_id: pagoId,
+          referencia,
+          monto: 0,
+          metodo_pago: 'gratis',
+          estatus: 'pagado',
+        },
+        { status: 201 }
+      );
+    }
+
+    const paymentsEnabled = await arePaymentsEnabled();
+
+    if (!paymentsEnabled) {
+      return NextResponse.json(
+        {
+          error: 'Lo sentimos, los pagos están deshabilitados por el momento. Contáctate con un asesor para notificar el problema.',
+          code: 'PAYMENTS_DISABLED',
+        },
+        { status: 503 }
       );
     }
 
