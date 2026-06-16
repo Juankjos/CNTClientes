@@ -133,6 +133,17 @@ export default function CatalogDetailPage() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!paying) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [paying]);
+
   async function handlePay() {
     if (!paymentsEnabled) {
       await Swal.fire({
@@ -146,9 +157,13 @@ export default function CatalogDetailPage() {
 
       return;
     }
+
     const result = await Swal.fire({
       title: '¿Continuar?',
-      text: 'Estás a punto de proceder al pago de este producto. ¿Continuar?',
+      text:
+        Number(item?.precio) === 0
+          ? 'Este contenido es gratuito. Se abrirá el formulario correspondiente.'
+          : 'Estás a punto de proceder al pago de este producto. ¿Continuar?',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Sí, continuar',
@@ -161,6 +176,8 @@ export default function CatalogDetailPage() {
     });
 
     if (!result.isConfirmed) return;
+
+    let keepLoading = false;
 
     try {
       setPaying(true);
@@ -179,6 +196,8 @@ export default function CatalogDetailPage() {
 
       if (!res.ok) {
         if (res.status === 503 || data?.code === 'PAYMENTS_DISABLED') {
+          setPaying(false);
+
           await Swal.fire({
             title: 'Pagos deshabilitados',
             text:
@@ -206,6 +225,8 @@ export default function CatalogDetailPage() {
       }
 
       if (data?.free_payment && data?.pago_id) {
+        setPaying(false);
+
         await Swal.fire({
           title: 'Contenido gratuito',
           text: 'Este contenido no requiere pago. Puedes continuar con el formulario.',
@@ -214,6 +235,9 @@ export default function CatalogDetailPage() {
           color: '#ffffff',
           confirmButtonColor: '#dc2626',
         });
+
+        keepLoading = true;
+        setPaying(true);
 
         router.push(`/peticiones/nueva?catalogo_id=${item.id}&pago_id=${data.pago_id}`);
         return;
@@ -224,9 +248,11 @@ export default function CatalogDetailPage() {
           type: 'err',
           text: 'BBVA no regresó una URL de pago válida.',
         });
+
         return;
       }
 
+      keepLoading = true;
       window.location.assign(data.payment_url);
     } catch (error) {
       setMsg({
@@ -234,7 +260,9 @@ export default function CatalogDetailPage() {
         text: error instanceof Error ? error.message : 'Error inesperado',
       });
     } finally {
-      setPaying(false);
+      if (!keepLoading) {
+        setPaying(false);
+      }
     }
   }
 
@@ -282,6 +310,27 @@ export default function CatalogDetailPage() {
     Boolean(rangoDiasTexto);
 
   return (
+  <>
+    {paying && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="mx-4 w-full max-w-sm rounded-2xl border border-cnt-border bg-cnt-dark p-6 text-center shadow-2xl">
+          <div className="mx-auto mb-5 h-14 w-14 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+
+          <p className="text-white text-lg font-semibold">
+            {Number(item.precio) === 0
+              ? 'Preparando formulario...'
+              : 'Conectando con BBVA...'}
+          </p>
+
+          <p className="mt-2 text-sm text-gray-400">
+            {Number(item.precio) === 0
+              ? 'Estamos generando tu acceso gratuito.'
+              : 'No cierres esta ventana. En unos segundos serás enviado al portal de pago.'}
+          </p>
+        </div>
+      </div>
+    )}
+
     <div className="max-w-3xl mx-auto">
       <Link href="/catalog" className="inline-flex items-center gap-2 text-gray-500 hover:text-white text-sm mb-6 transition-colors">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -469,5 +518,6 @@ export default function CatalogDetailPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
