@@ -15,17 +15,29 @@ interface LoginResult {
 }
 
 export async function login(
-  username: string,
+  identifier: string,
   password: string,
   ip: string,
   userAgent: string
 ): Promise<LoginResult> {
+  const loginIdentifier = identifier.trim();
+  const emailIdentifier = loginIdentifier.toLowerCase();
+
   const [rows] = await pool.execute<RowDataPacket[]>(
-  `SELECT id, username, email, password, rol, activo, intentos_login, bloqueado_hasta, email_verificado_at
+    `SELECT
+        id,
+        username,
+        email,
+        password,
+        rol,
+        activo,
+        intentos_login,
+        bloqueado_hasta,
+        email_verificado_at
     FROM usuarios_clientes
     WHERE username = ? OR email = ?
     LIMIT 1`,
-    [username, username]
+    [loginIdentifier, emailIdentifier]
   );
 
   if (!rows.length) {

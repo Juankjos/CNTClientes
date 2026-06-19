@@ -9,10 +9,14 @@ const COOKIE_NAME = 'cnt_session';
 const PUBLIC_PATHS = [
   '/login',
   '/register',
+  '/forgot-password',
+  '/reset-password',
   '/verify-email',
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/verify-email',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
   '/api/cron/peticiones/cleanup-archivos',
 ];
 

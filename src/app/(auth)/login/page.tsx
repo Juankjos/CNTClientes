@@ -62,7 +62,7 @@ function LoginPageContent() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: fd.get('username'),
+        identifier: fd.get('identifier'),
         password: fd.get('password'),
       }),
     });
@@ -151,16 +151,16 @@ function LoginPageContent() {
             <div className="space-y-5">
               <div>
                 <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
-                  Usuario
+                  Usuario o correo
                 </label>
                 <input
                   ref={userRef}
-                  name="username"
+                  name="identifier"
                   type="text"
                   required
                   autoComplete="username"
                   className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red transition-colors"
-                  placeholder="Usuario"
+                  placeholder="Usuario o correo electrónico"
                 />
               </div>
 
@@ -210,7 +210,7 @@ function LoginPageContent() {
             </button>
 
             <Link
-              href="https://nube.tvctepa.com/CNTClientes/register"
+              href="/register"
               className="mt-4 block w-full text-center border border-cnt-border hover:border-cnt-red text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
             >
               ¿No tienes cuenta? Regístrate
