@@ -72,8 +72,8 @@ export default function Navbar({ user }: NavbarProps) {
         </nav>
 
         <div className="flex items-center gap-3">
-          <span className="hidden sm:block text-xs text-gray-500">
-            {user.username}
+          <span className="hidden sm:block text-xs text-white">
+            Usuario: {user.username}
             {user.rol === 'admin' && (
               <span className="ml-1.5 px-1.5 py-0.5 bg-red-950 text-cnt-red rounded text-[10px] uppercase tracking-wider">
                 admin
