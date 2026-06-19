@@ -243,6 +243,8 @@ export default function AdminPage() {
   const [logTotal, setLogTotal] = useState(0);
   const [logNivel, setLogNivel] = useState('');
   const [logQ, setLogQ] = useState('');
+  const [logLoading, setLogLoading] = useState(false);
+  const [logMsg, setLogMsg] = useState('');
 
   // --- Pagos admin state ---
   const [pagos, setPagos] = useState<any[]>([]);
@@ -361,16 +363,31 @@ export default function AdminPage() {
   }
 
   const fetchLogs = useCallback(async () => {
-    const params = new URLSearchParams({ page: String(logPage) });
+    try {
+      setLogLoading(true);
+      setLogMsg('');
 
-    if (logNivel) params.set('nivel', logNivel);
-    if (logQ.trim()) params.set('q', logQ.trim());
+      const params = new URLSearchParams({ page: String(logPage) });
 
-    const res = await fetch(apiPath(`/api/admin/logs?${params.toString()}`));
-    const data = await res.json().catch(() => ({}));
+      if (logNivel) params.set('nivel', logNivel);
+      if (logQ.trim()) params.set('q', logQ.trim());
 
-    setLogs(data.logs ?? []);
-    setLogTotal(data.pagination?.total ?? 0);
+      const res = await fetch(apiPath(`/api/admin/logs?${params.toString()}`));
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `HTTP ${res.status}`);
+      }
+
+      setLogs(data.logs ?? []);
+      setLogTotal(data.pagination?.total ?? 0);
+    } catch (error) {
+      setLogs([]);
+      setLogTotal(0);
+      setLogMsg(error instanceof Error ? error.message : 'No se pudieron cargar los logs');
+    } finally {
+      setLogLoading(false);
+    }
   }, [logPage, logNivel, logQ]);
 
   const fetchPagos = useCallback(async () => {
@@ -1265,14 +1282,14 @@ export default function AdminPage() {
               <button
                 disabled={pagosPage <= 1}
                 onClick={() => setPagosPage((p) => p - 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
               >
                 ← Anterior
               </button>
               <button
                 disabled={pagosPage * 10 >= pagosTotal}
                 onClick={() => setPagosPage((p) => p + 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
               >
                 Siguiente →
               </button>
@@ -1468,14 +1485,14 @@ export default function AdminPage() {
               <button
                 disabled={peticionesPage <= 1}
                 onClick={() => setPeticionesPage((p) => p - 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
               >
                 ← Anterior
               </button>
               <button
                 disabled={peticionesPage * 10 >= peticionesTotal}
                 onClick={() => setPeticionesPage((p) => p + 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
               >
                 Siguiente →
               </button>
@@ -1557,6 +1574,12 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {logMsg && (
+            <div className="rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300 mb-4">
+              {logMsg}
+            </div>
+          )}
+
           <div className="overflow-x-auto rounded-xl border border-cnt-border">
             <table className="w-full text-sm">
               <thead>
@@ -1569,7 +1592,17 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-cnt-border font-mono">
-                {logs.length === 0 ? (
+                {logLoading ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i} className="bg-cnt-dark">
+                      {[...Array(7)].map((_, j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="h-4 bg-cnt-surface rounded animate-pulse" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : logs.length === 0 ? (
                   <tr className="bg-cnt-dark">
                     <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
                       No se encontraron logs.
@@ -1586,7 +1619,11 @@ export default function AdminPage() {
                       <td className="px-4 py-2.5 text-gray-400 text-xs">{l.username ?? '—'}</td>
                       <td className="px-4 py-2.5 text-white text-xs">{l.accion}</td>
                       <td className="px-4 py-2.5 text-gray-500 text-xs">{l.modulo ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-gray-500 text-xs max-w-48 truncate">{l.descripcion ?? '—'}</td>
+                      <td className="px-4 py-2.5 align-top">
+                        <div className="max-h-28 min-w-72 max-w-md overflow-y-auto rounded-md border border-cnt-border bg-cnt-surface/40 px-3 py-2 text-xs text-gray-400 whitespace-pre-wrap break-words leading-relaxed">
+                          {l.descripcion ?? '—'}
+                        </div>
+                      </td>
                       <td className="px-4 py-2.5 text-gray-600 text-xs">{l.ip ?? '—'}</td>
                       <td className="px-4 py-2.5 text-gray-600 text-xs whitespace-nowrap">
                         {new Date(l.created_at).toLocaleString('es-MX', {
@@ -1606,14 +1643,14 @@ export default function AdminPage() {
               <button
                 disabled={logPage <= 1}
                 onClick={() => setLogPage((p) => p - 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
               >
                 ← Anterior
               </button>
               <button
                 disabled={logPage * 20 >= logTotal}
                 onClick={() => setLogPage((p) => p + 1)}
-                className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
+                className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 rounded-lg text-sm disabled:opacity-40"
               >
                 Siguiente →
               </button>
