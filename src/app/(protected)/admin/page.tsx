@@ -269,6 +269,9 @@ export default function AdminPage() {
   const [reviewHistorial, setReviewHistorial] = useState<any[]>([]);
   const [reviewDomicilios, setReviewDomicilios] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState<ReviewForm>(emptyReviewForm);
+  const [quickCommentEditing, setQuickCommentEditing] = useState(false);
+  const [quickCommentText, setQuickCommentText] = useState('');
+  const [quickCommentSaving, setQuickCommentSaving] = useState(false);
   const [sendingReporteros, setSendingReporteros] = useState(false);
 
   const [paymentsEnabled, setPaymentsEnabled] = useState(true);
@@ -533,6 +536,8 @@ export default function AdminPage() {
       setReviewPeticion(data.peticion);
       setReviewHistorial(data.historial ?? []);
       setReviewDomicilios(data.domiciliosDisponibles ?? []);
+      setQuickCommentEditing(false);
+      setQuickCommentText(data.peticion?.comentario_admin ?? '');
 
       setReviewForm({
         motivo: data.peticion?.motivo ?? '',
@@ -721,6 +726,40 @@ export default function AdminPage() {
     await fetchPeticiones();
     await openPeticionReview(reviewPeticion.id);
     setReviewEditing(false);
+    }
+
+    async function saveQuickAdminComment() {
+    if (!reviewPeticion) return;
+
+    try {
+      setQuickCommentSaving(true);
+      setPeticionMsg('');
+
+      const res = await fetch(apiPath(`/api/admin/peticiones/${reviewPeticion.id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comentario_admin: quickCommentText,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'No se pudo guardar el comentario');
+      }
+
+      await fetchPeticiones();
+      await openPeticionReview(reviewPeticion.id);
+
+      setQuickCommentEditing(false);
+    } catch (error) {
+      setPeticionMsg(
+        error instanceof Error ? error.message : 'No se pudo guardar el comentario'
+      );
+    } finally {
+      setQuickCommentSaving(false);
+    }
   }
 
   async function handleTogglePayments(checked: boolean) {
@@ -1720,6 +1759,8 @@ export default function AdminPage() {
                 onClick={() => {
                   setReviewOpen(false);
                   setReviewEditing(false);
+                  setQuickCommentEditing(false);
+                  setQuickCommentText('');
                   setReviewPeticion(null);
                   setReviewHistorial([]);
                   setReviewDomicilios([]);
@@ -2072,13 +2113,73 @@ export default function AdminPage() {
                         )}
                       </div>
 
-                      <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
-                          Comentario del administrador
-                        </p>
-                        <p className="text-yellow-300 whitespace-pre-wrap">
-                          {reviewPeticion.comentario_admin || '—'}
-                        </p>
+                      <div className="rounded-xl border border-cnt-border bg-cnt-surface/40 p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-gray-400 uppercase tracking-widest">
+                              Comentario del administrador
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Visible para el cliente.
+                            </p>
+                          </div>
+
+                          {!quickCommentEditing && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuickCommentText(reviewPeticion.comentario_admin ?? '');
+                                setQuickCommentEditing(true);
+                              }}
+                              className="cursor-pointer rounded-lg border border-cnt-border px-3 py-2 text-xs text-gray-300 transition-colors hover:border-cnt-red hover:text-white"
+                            >
+                              {reviewPeticion.comentario_admin ? 'Editar comentario' : 'Agregar comentario'}
+                            </button>
+                          )}
+                        </div>
+
+                        {quickCommentEditing ? (
+                          <div className="space-y-3">
+                            <textarea
+                              value={quickCommentText}
+                              onChange={(e) => setQuickCommentText(e.target.value)}
+                              rows={4}
+                              placeholder="Escribe un comentario visible para el cliente..."
+                              className="w-full resize-none rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-cnt-red focus:outline-none"
+                            />
+
+                            <div className="flex justify-end gap-3">
+                              <button
+                                type="button"
+                                disabled={quickCommentSaving}
+                                onClick={() => {
+                                  setQuickCommentEditing(false);
+                                  setQuickCommentText(reviewPeticion.comentario_admin ?? '');
+                                }}
+                                className="cursor-pointer rounded-lg border border-cnt-border px-4 py-2 text-sm text-gray-300 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Cancelar
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={quickCommentSaving}
+                                onClick={saveQuickAdminComment}
+                                className="cursor-pointer rounded-lg border border-cnt-red bg-cnt-red px-4 py-2 text-sm text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-900 disabled:opacity-70"
+                              >
+                                {quickCommentSaving
+                                  ? 'Guardando...'
+                                  : reviewPeticion.comentario_admin
+                                    ? 'Guardar'
+                                    : 'Agregar'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-yellow-300 whitespace-pre-wrap">
+                            {reviewPeticion.comentario_admin || '—'}
+                          </p>
+                        )}
                       </div>
 
                       <div>
