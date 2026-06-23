@@ -372,9 +372,9 @@ export default function CatalogDetailPage() {
         )}
         {itemTieneRango && (
           <div className="mt-5 rounded-xl border border-blue-900/60 bg-blue-950/20 p-4">
-            <p className="text-xs text-blue-300 uppercase tracking-widest mb-1">
+            {/* <p className="text-xs text-blue-300 uppercase tracking-widest mb-1">
               Rango de fechas incluido
-            </p>
+            </p> */}
 
             <p className="text-white font-semibold">
               Cubre {rangoDiasTexto}.
@@ -387,7 +387,7 @@ export default function CatalogDetailPage() {
             {tieneRestriccionesRango && (
               <div className="mt-4 rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3">
                 <p className="text-xs text-yellow-300 uppercase tracking-widest mb-2">
-                  El paquete omite las siguientes fechas:
+                  El paquete omite las siguientes fechas (Se conserva la cantidad de {rangoDiasTexto} contratados):
                 </p>
 
                 <div className="space-y-3 text-sm">
@@ -433,7 +433,7 @@ export default function CatalogDetailPage() {
                   )} */}
                 </div>
 
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs  text-yellow-300 mt-3">
                   Las fechas no incluidas se omiten y el rango se extiende hasta completar los días aplicables.
                 </p>
               </div>
