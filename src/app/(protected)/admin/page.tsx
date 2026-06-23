@@ -1,7 +1,8 @@
 // src/app/(protected)/admin/page.tsx
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiPath } from '@/lib/api-path';
 import Swal from 'sweetalert2';
 import DatePicker, { registerLocale } from 'react-datepicker';
@@ -227,6 +228,11 @@ function ToggleSwitch({ checked, onChange, disabled = false }: ToggleSwitchProps
 }
 
 export default function AdminPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const adminQuery = searchParams.toString();
+  const autoOpenedPeticionRef = useRef<string | null>(null);
+
   const [tab, setTab] = useState<'users' | 'logs' | 'pagos' | 'peticiones'>('peticiones');
 
   // --- Users state ---
@@ -266,6 +272,7 @@ export default function AdminPage() {
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewEditing, setReviewEditing] = useState(false);
   const [reviewPeticion, setReviewPeticion] = useState<any>(null);
+  const [pendingNotificationPeticionId, setPendingNotificationPeticionId] = useState<number | null>(null);
   const [reviewHistorial, setReviewHistorial] = useState<any[]>([]);
   const [reviewDomicilios, setReviewDomicilios] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState<ReviewForm>(emptyReviewForm);
@@ -842,6 +849,81 @@ export default function AdminPage() {
   useEffect(() => {
     fetchPaymentsSetting();
   }, [fetchPaymentsSetting]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(adminQuery);
+
+    const tabParam = params.get('tab');
+    const rawPeticionId = params.get('peticionId');
+
+    if (tabParam !== 'peticiones' || !rawPeticionId) {
+      autoOpenedPeticionRef.current = null;
+      return;
+    }
+
+    const peticionId = Number(rawPeticionId);
+
+    if (!Number.isInteger(peticionId) || peticionId <= 0) {
+      autoOpenedPeticionRef.current = null;
+      router.replace('/admin', { scroll: false });
+      return;
+    }
+
+    const key = `peticion:${peticionId}`;
+
+    if (autoOpenedPeticionRef.current === key) return;
+
+    autoOpenedPeticionRef.current = key;
+
+    setTab('peticiones');
+    setPeticionesStatus('');
+    setPeticionesQ('');
+    setPeticionesPage(1);
+    setPendingNotificationPeticionId(peticionId);
+
+    void openPeticionReview(peticionId);
+  }, [adminQuery, router]);
+
+  useEffect(() => {
+    if (!pendingNotificationPeticionId) return;
+    if (!reviewOpen) return;
+    if (reviewLoading) return;
+    if (!reviewPeticion?.id) return;
+
+    if (Number(reviewPeticion.id) !== pendingNotificationPeticionId) return;
+
+    setPendingNotificationPeticionId(null);
+    router.replace('/admin', { scroll: false });
+  }, [
+    pendingNotificationPeticionId,
+    reviewOpen,
+    reviewLoading,
+    reviewPeticion?.id,
+    router,
+  ]);
+
+  useEffect(() => {
+    function handleOpenAdminPeticion(event: Event) {
+      const customEvent = event as CustomEvent<{ peticionId?: number }>;
+      const peticionId = Number(customEvent.detail?.peticionId);
+
+      if (!Number.isInteger(peticionId) || peticionId <= 0) return;
+
+      setTab('peticiones');
+      setPeticionesStatus('');
+      setPeticionesQ('');
+      setPeticionesPage(1);
+      setPendingNotificationPeticionId(peticionId);
+
+      void openPeticionReview(peticionId);
+    }
+
+    window.addEventListener('cnt:open-admin-peticion', handleOpenAdminPeticion);
+
+    return () => {
+      window.removeEventListener('cnt:open-admin-peticion', handleOpenAdminPeticion);
+    };
+  }, []);
 
   async function toggleUser(id: number, activo: number) {
     await fetch(apiPath(`/api/admin/users/${id}`), {
@@ -1713,6 +1795,12 @@ export default function AdminPage() {
                     {reviewPeticion?.titulo ?? 'Cargando...'}
                   </h2>
 
+                  {reviewPeticion?.id && (
+                    <span className="px-2 py-1 rounded-md border border-blue-800 bg-blue-950/40 text-xs uppercase tracking-wider text-blue-300">
+                      Petición #{reviewPeticion.id}
+                    </span>
+                  )}
+
                   {reviewPeticion?.categoria && (
                     <span className="px-2 py-1 rounded-md border border-cnt-border bg-cnt-surface text-xs uppercase tracking-wider text-gray-300">
                       {reviewPeticion.categoria}
@@ -1761,6 +1849,7 @@ export default function AdminPage() {
                   setReviewEditing(false);
                   setQuickCommentEditing(false);
                   setQuickCommentText('');
+                  setPendingNotificationPeticionId(null);
                   setReviewPeticion(null);
                   setReviewHistorial([]);
                   setReviewDomicilios([]);

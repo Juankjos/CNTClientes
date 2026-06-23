@@ -4,6 +4,7 @@ import { pool } from '@/lib/db';
 import type { RowDataPacket } from 'mysql2';
 import path from 'node:path';
 import { unlink } from 'node:fs/promises';
+import { createNotification, notifyAdmins } from '@/lib/notificaciones';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,11 @@ type ArchivoSubido = {
 type PeticionRow = RowDataPacket & {
     id: number;
     cliente_id: number;
+    cliente_usuario_id: number;
     archivos_subidos: unknown;
+    motivo: string | null;
+    catalogo_titulo: string | null;
+    titulo: string | null;
 };
 
 function parseArchivosSubidos(value: unknown): ArchivoSubido[] {
@@ -99,22 +104,28 @@ export async function GET(req: NextRequest) {
         }
 
         const [rows] = await pool.execute<PeticionRow[]>(
-        `
-        SELECT
-            id,
-            cliente_id,
-            archivos_subidos
-        FROM peticiones_clientes
-        WHERE archivos_subidos IS NOT NULL
-            AND JSON_LENGTH(archivos_subidos) > 0
-            AND archivos_eliminados_at IS NULL
-            AND DATE_ADD(
-            TIMESTAMP(COALESCE(fecha_fin, fecha_deseada), '23:59:59'),
-            INTERVAL 2 DAY
-            ) <= NOW()
-        ORDER BY COALESCE(fecha_fin, fecha_deseada) ASC
-        LIMIT 50
-        `
+            `
+            SELECT
+                p.id,
+                p.cliente_id,
+                cl.usuario_id AS cliente_usuario_id,
+                p.archivos_subidos,
+                p.motivo,
+                p.catalogo_titulo,
+                c.titulo
+            FROM peticiones_clientes p
+            INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
+            LEFT JOIN catalogo_clientes c ON c.id = p.catalogo_id
+            WHERE p.archivos_subidos IS NOT NULL
+                AND JSON_LENGTH(p.archivos_subidos) > 0
+                AND p.archivos_eliminados_at IS NULL
+                AND DATE_ADD(
+                    TIMESTAMP(COALESCE(p.fecha_fin, p.fecha_deseada), '23:59:59'),
+                    INTERVAL 2 DAY
+                ) <= NOW()
+            ORDER BY COALESCE(p.fecha_fin, p.fecha_deseada) ASC
+            LIMIT 50
+            `
         );
 
         let peticionesProcesadas = 0;
@@ -144,15 +155,45 @@ export async function GET(req: NextRequest) {
             }
 
             await pool.execute(
-            `
-            UPDATE peticiones_clientes
-            SET
-                archivos_eliminados_at = NOW(),
-                archivos_limpieza_error = NULL
-            WHERE id = ?
-            `,
-            [row.id]
+                `
+                UPDATE peticiones_clientes
+                SET
+                    archivos_eliminados_at = NOW(),
+                    archivos_limpieza_error = NULL
+                WHERE id = ?
+                `,
+                [row.id]
             );
+
+            const peticionTitulo = String(
+                row.catalogo_titulo || row.titulo || row.motivo || `Petición ${row.id}`
+            );
+
+            try {
+                await createNotification({
+                    usuarioId: Number(row.cliente_usuario_id),
+                    actorUsuarioId: null,
+                    peticionId: Number(row.id),
+                    tipo: 'archivos_eliminados',
+                    titulo: 'Archivos eliminados',
+                    mensaje: `Los archivos adjuntos de tu petición "${peticionTitulo}" fueron eliminados por limpieza automática.`,
+                    url: `/formularios/${row.id}`,
+                });
+
+                await notifyAdmins({
+                    actorUsuarioId: null,
+                    peticionId: Number(row.id),
+                    tipo: 'archivos_eliminados',
+                    titulo: 'Archivos eliminados',
+                    mensaje: `Se eliminaron automáticamente los archivos adjuntos de la petición "${peticionTitulo}".`,
+                    url: `/admin?tab=peticiones&peticionId=${row.id}`,
+                });
+            } catch (notificationError) {
+                console.error(
+                    '[cleanup-archivos] Error creando notificaciones:',
+                    notificationError
+                );
+            }
 
             peticionesProcesadas += 1;
 

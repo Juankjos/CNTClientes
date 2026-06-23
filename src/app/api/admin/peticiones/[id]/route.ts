@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session';
 import { pool } from '@/lib/db';
 import { logAction } from '@/lib/logger';
 import type { RowDataPacket } from 'mysql2';
+import { createNotification } from '@/lib/notificaciones';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
@@ -528,6 +529,63 @@ export async function PATCH(
         'peticiones',
         `Petición ${id} actualizada`
       );
+
+      const clienteUsuarioId = Number(current.usuario_cliente_id);
+      const peticionId = Number(id);
+      const actorUsuarioId = Number(session.user.id);
+      const peticionTitulo = String(
+        current.catalogo_titulo || current.motivo || `Petición ${id}`
+      );
+
+      if (Number.isInteger(clienteUsuarioId) && clienteUsuarioId > 0) {
+        const comentarioChanged = changes.some(
+          (change) => change.field === 'comentario_admin'
+        );
+
+        const estatusChanged = changes.some(
+          (change) => change.field === 'estatus'
+        );
+
+        const fechaChanged = changes.some(
+          (change) => change.field === 'fecha_deseada'
+        );
+
+        if (comentarioChanged) {
+          await createNotification({
+            usuarioId: clienteUsuarioId,
+            actorUsuarioId,
+            peticionId,
+            tipo: 'comentario_admin',
+            titulo: 'Comentario del administrador',
+            mensaje: `El administrador agregó / actualizó un comentario en tu petición "${peticionTitulo}".`,
+            url: `/formularios/${peticionId}`,
+          });
+        }
+
+        if (estatusChanged) {
+          await createNotification({
+            usuarioId: clienteUsuarioId,
+            actorUsuarioId,
+            peticionId,
+            tipo: 'cambio_estatus',
+            titulo: 'Estatus actualizado',
+            mensaje: `El estatus de tu petición "${peticionTitulo}" cambió a "${nextEstatus}".`,
+            url: `/formularios/${peticionId}`,
+          });
+        }
+
+        if (fechaChanged) {
+          await createNotification({
+            usuarioId: clienteUsuarioId,
+            actorUsuarioId,
+            peticionId,
+            tipo: 'cambio_fecha',
+            titulo: 'Fecha actualizada',
+            mensaje: `La fecha de tu petición "${peticionTitulo}" fue actualizada. Revisa los detalles.`,
+            url: `/formularios/${peticionId}`,
+          });
+        }
+      }
     }
 
     const [updatedRows] = await pool.execute<RowDataPacket[]>(

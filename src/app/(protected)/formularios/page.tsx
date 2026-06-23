@@ -163,10 +163,14 @@ export default function MisFormulariosPage() {
 
                 <button
                   type="button"
-                  disabled={!enabled}
+                  disabled={!enabled || (hasPeticion && !item.peticion_id)}
                   onClick={() => {
                     if (hasPeticion) {
-                      router.push(`/formularios/${item.pago_id}`);
+                      if (!item.peticion_id) {
+                        return;
+                      }
+
+                      router.push(`/formularios/${item.peticion_id}`);
                       return;
                     }
 

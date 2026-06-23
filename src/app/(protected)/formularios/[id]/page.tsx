@@ -231,7 +231,7 @@ export default function VerFormularioPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
-  const pagoId = Number(params.id);
+  const peticionId = Number(params.id);
 
   const [loading, setLoading] = useState(true);
   const [item, setItem] = useState<FormularioDetalle | null>(null);
@@ -240,7 +240,7 @@ export default function VerFormularioPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(apiPath(`/api/peticiones/${pagoId}`));
+        const res = await fetch(apiPath(`/api/peticiones/${peticionId}`));
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
@@ -257,14 +257,14 @@ export default function VerFormularioPage() {
       }
     }
 
-    if (!Number.isInteger(pagoId) || pagoId <= 0) {
-      setError('Pago inválido.');
+    if (!Number.isInteger(peticionId) || peticionId <= 0) {
+      setError('Petición inválida.');
       setLoading(false);
       return;
     }
 
     load();
-  }, [pagoId]);
+    }, [peticionId]);
 
   const domicilioTexto = useMemo(() => {
     if (!item) return 'No aplica';
@@ -324,6 +324,22 @@ export default function VerFormularioPage() {
           <div className={`px-1 py-1 text-sm uppercase ${peticionEstatusColor(item.peticion_estatus)}`}>
             {item.peticion_estatus}
           </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+            Comentario del administrador
+          </p>
+
+          {item.comentario_admin ? (
+            <div className="rounded-lg border border-yellow-800 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-300 whitespace-pre-wrap">
+              {item.comentario_admin}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-cnt-border bg-cnt-dark px-4 py-3 text-sm text-gray-500">
+              Aún no hay comentarios del administrador.
+            </div>
+          )}
         </div>
 
         <div>

@@ -6,6 +6,7 @@ import { logAction } from '@/lib/logger';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import path from 'node:path';
 import { stat } from 'node:fs/promises';
+import { createNotification, notifyAdmins } from '@/lib/notificaciones';
 
 const VALID_STATUS = new Set(['pendiente', 'aceptada', 'rechazada']);
 
@@ -555,7 +556,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [dupRows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id FROM peticiones_clientes WHERE pago_id = ?`,
+      `SELECT id FROM peticiones_clientes WHERE pago_id = ? LIMIT 1`,
       [pagoId]
     );
 
@@ -564,6 +565,7 @@ export async function POST(req: NextRequest) {
         {
           error: 'Ya existe una petición para este pago.',
           code: 'PETICION_YA_EXISTE',
+          peticion_id: Number(dupRows[0].id),
         },
         { status: 409 }
       );
@@ -818,24 +820,54 @@ export async function POST(req: NextRequest) {
       ]
     );
 
+    const peticionId = Number(insert.insertId);
+    const peticionTitulo = catalogoTitulo || String(motivo).trim() || `Petición ${peticionId}`;
+
     await pool.execute(
       `
       INSERT INTO peticiones_clientes_historial
       (peticion_id, accion, campo, valor_anterior, valor_nuevo)
       VALUES (?, 'crear', NULL, NULL, 'Petición creada')
       `,
-      [insert.insertId]
+      [peticionId]
     );
 
     await logAction(
       Number(session.user.id),
       'crear_peticion',
       'peticiones',
-      `Petición ${insert.insertId} creada`
+      `Petición ${peticionId} creada`
     );
 
+    /**
+     * Las notificaciones no deben bloquear la creación de la petición.
+     * Si falla una notificación, la petición sigue siendo válida.
+     */
+    try {
+      await notifyAdmins({
+        actorUsuarioId: Number(session.user.id),
+        peticionId,
+        tipo: 'nueva_peticion',
+        titulo: 'Nueva petición recibida',
+        mensaje: `Se creó una nueva petición del servicio "${peticionTitulo}".`,
+        url: `/admin?tab=peticiones&peticionId=${peticionId}`,
+      });
+
+      await createNotification({
+        usuarioId: Number(session.user.id),
+        actorUsuarioId: Number(session.user.id),
+        peticionId,
+        tipo: 'nueva_peticion',
+        titulo: 'Petición creada',
+        mensaje: `Tu petición para "${peticionTitulo}" fue creada correctamente.`,
+        url: `/formularios/${peticionId}`,
+      });
+    } catch (notificationError) {
+      console.error('[POST /api/peticiones] Error creando notificaciones:', notificationError);
+    }
+
     return NextResponse.json(
-      { ok: true, peticion_id: insert.insertId },
+      { ok: true, peticion_id: peticionId },
       { status: 201 }
     );
   } catch (error: any) {

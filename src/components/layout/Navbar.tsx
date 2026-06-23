@@ -1,10 +1,14 @@
 // src/components/layout/Navbar.tsx
 'use client';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import Swal from 'sweetalert2';
+
 import type { SessionUser } from '@/types';
 import { apiPath } from '@/lib/api-path';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 interface NavbarProps { user: SessionUser }
 
@@ -12,6 +16,7 @@ export default function Navbar({ user }: NavbarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const navLinks = [
     { href: '/catalog', label: 'Catálogo' },
@@ -25,9 +30,48 @@ export default function Navbar({ user }: NavbarProps) {
   ];
 
   async function logout() {
-    await fetch(apiPath('/api/auth/logout'), { method: 'POST' });
-    router.push('/login');
-    router.refresh();
+    const result = await Swal.fire({
+      title: '¿Seguro que deseas cerrar sesión?',
+      text: 'Tendrás que iniciar sesión nuevamente para continuar.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cerrar sesión',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setIsLoggingOut(true);
+
+      const response = await fetch(apiPath('/api/auth/logout'), {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo cerrar sesión');
+      }
+
+      router.push('/login');
+      router.refresh();
+    } catch {
+      setIsLoggingOut(false);
+
+      await Swal.fire({
+        title: 'Error',
+        text: 'No se pudo cerrar sesión. Inténtalo nuevamente.',
+        icon: 'error',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    }
   }
 
   return (
@@ -73,7 +117,7 @@ export default function Navbar({ user }: NavbarProps) {
 
         <div className="flex items-center gap-3">
           <span className="hidden sm:block text-xs text-white">
-            Usuario: {user.username}
+            {user.username}
             {user.rol === 'admin' && (
               <span className="ml-1.5 px-1.5 py-0.5 bg-red-950 text-cnt-red rounded text-[10px] uppercase tracking-wider">
                 admin
@@ -81,11 +125,14 @@ export default function Navbar({ user }: NavbarProps) {
             )}
           </span>
 
+          <NotificationBell />
+
           <button
             onClick={logout}
-            className="cursor-pointer px-3 py-1.5 text-xs text-gray-400 hover:text-white border border-cnt-border hover:border-gray-500 rounded-md transition-all"
+            disabled={isLoggingOut}
+            className="cursor-pointer px-3 py-1.5 text-xs text-gray-400 hover:text-white border border-cnt-border hover:border-gray-500 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Salir
+            {isLoggingOut ? 'Saliendo...' : 'Salir'}
           </button>
 
           <button

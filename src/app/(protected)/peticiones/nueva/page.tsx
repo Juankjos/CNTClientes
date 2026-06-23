@@ -153,7 +153,12 @@ export default function NuevaPeticionPage() {
         }
 
         if (pagoData.tiene_peticion) {
-          router.replace(`/formularios/${pagoId}`);
+          if (pagoData.peticion_id) {
+            router.replace(`/formularios/${pagoData.peticion_id}`);
+          } else {
+            router.replace('/formularios');
+          }
+
           return;
         }
 
@@ -668,7 +673,11 @@ export default function NuevaPeticionPage() {
         await Swal.fire('Error', data.error ?? 'No se pudo guardar la petición.', 'error');
 
         if (data.code === 'PETICION_YA_EXISTE') {
-          router.replace(`/formularios/${pagoId}`);
+          if (data.peticion_id) {
+            router.replace(`/formularios/${data.peticion_id}`);
+          } else {
+            router.replace('/formularios');
+          }
         }
         return;
       }
@@ -679,7 +688,7 @@ export default function NuevaPeticionPage() {
         'success'
       );
 
-      router.replace(`/formularios/${pagoId}`);
+      router.replace(`/formularios/${data.peticion_id}`);
     } finally {
       setSending(false);
       setUploadingFiles(false);
