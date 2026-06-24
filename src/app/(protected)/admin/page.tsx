@@ -527,6 +527,65 @@ export default function AdminPage() {
     return Boolean(peticion?.enviada_reporteros_at || peticion?.noticia_id);
   }
 
+  function parseDateOnlyLocal(value: unknown) {
+    const text = String(value ?? '').trim();
+    const dateOnly = text.length >= 10 ? text.slice(0, 10) : '';
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return null;
+
+    const [year, month, day] = dateOnly.split('-').map(Number);
+
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+  }
+
+  function parseHoraDbParts(value: unknown) {
+    const text = String(value ?? '').trim();
+    const match = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+    if (!match) return null;
+
+    return {
+      hours: Number(match[1]),
+      minutes: Number(match[2]),
+      seconds: Number(match[3] ?? 0),
+    };
+  }
+
+  function buildFechaDeseadaForPicker(
+    fechaValue: unknown,
+    horaValue?: unknown,
+    usaHora?: unknown
+  ) {
+    const date = parseDateOnlyLocal(fechaValue);
+
+    if (!date) return null;
+
+    if (toBooleanDb(usaHora)) {
+      const hora = parseHoraDbParts(horaValue);
+
+      if (hora) {
+        date.setHours(hora.hours, hora.minutes, hora.seconds, 0);
+      }
+    }
+
+    return date;
+  }
+
+  function toSqlDate(date: Date) {
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function toSqlTime(date: Date) {
+    const hh = pad(date.getHours());
+    const mi = pad(date.getMinutes());
+
+    return `${hh}:${mi}:00`;
+  }
+
   async function openPeticionReview(id: number) {
     try {
       setReviewOpen(true);
@@ -551,7 +610,11 @@ export default function AdminPage() {
         descripcion: data.peticion?.descripcion ?? '',
         usar_domicilio: Boolean(data.peticion?.usar_domicilio),
         domicilio_slot: data.peticion?.domicilio_slot ? String(data.peticion.domicilio_slot) : '',
-        fecha_deseada: parseFechaDeseada(data.peticion?.fecha_deseada),
+        fecha_deseada: buildFechaDeseadaForPicker(
+          data.peticion?.fecha_deseada,
+          data.peticion?.hora_cita,
+          data.peticion?.usa_hora_cita
+        ),
         comentario_admin: data.peticion?.comentario_admin ?? '',
         estatus: (data.peticion?.estatus ?? 'pendiente') as ReviewForm['estatus'],
       });
@@ -716,7 +779,8 @@ export default function AdminPage() {
         descripcion: reviewForm.descripcion,
         usar_domicilio: reviewForm.usar_domicilio,
         domicilio_slot: reviewForm.usar_domicilio ? Number(reviewForm.domicilio_slot) : null,
-        fecha_deseada: toSqlDateTime(reviewForm.fecha_deseada),
+        fecha_deseada: toSqlDate(reviewForm.fecha_deseada),
+        hora_cita: reviewPeticion.usa_hora_cita ? toSqlTime(reviewForm.fecha_deseada) : null,
         comentario_admin: reviewForm.comentario_admin,
         estatus: reviewForm.estatus,
       }),
@@ -735,7 +799,7 @@ export default function AdminPage() {
     setReviewEditing(false);
     }
 
-    async function saveQuickAdminComment() {
+  async function saveQuickAdminComment() {
     if (!reviewPeticion) return;
 
     try {
