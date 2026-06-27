@@ -150,12 +150,12 @@ export default function PaymentDetailPage() {
           </div>
 
           {/* Respuesta / comprobante */}
-          {pago.respuesta && (
+          {/* {pago.respuesta && (
             <div className="bg-cnt-dark rounded-lg p-4">
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Respuesta del sistema</p>
               <p className="text-gray-300 text-sm">{pago.respuesta}</p>
             </div>
-          )}
+          )} */}
 
           {/* Acceso al contenido si está pagado */}
           {pago.estatus === 'pagado' && pago.archivo && (

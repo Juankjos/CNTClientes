@@ -32,7 +32,7 @@ export default function Navbar({ user }: NavbarProps) {
   async function logout() {
     const result = await Swal.fire({
       title: '¿Seguro que deseas cerrar sesión?',
-      text: 'Tendrás que iniciar sesión nuevamente para continuar.',
+      text: 'Saldrás nuevamente a la pantalla de Inicio de sesión.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Sí, cerrar sesión',
