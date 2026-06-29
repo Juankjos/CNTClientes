@@ -24,6 +24,7 @@ type CheckoutRow = RowDataPacket & {
     catalogo_titulo: string | null;
     catalogo_descripcion: string | null;
     catalogo_categoria: string | null;
+    catalogo_precio?: string | number | null;
     catalogo_imagen: string | null;
     catalogo_archivo: string | null;
     catalogo_snapshot: unknown;
@@ -71,6 +72,57 @@ function normalizeJsonForDb(value: unknown) {
     return JSON.stringify(value ?? null);
 }
 
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
+    let parsed = value;
+
+    if (Buffer.isBuffer(parsed)) {
+        parsed = parsed.toString('utf8');
+    }
+
+    if (typeof parsed === 'string') {
+        try {
+            parsed = JSON.parse(parsed);
+        } catch {
+            return null;
+        }
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return null;
+    }
+
+    return parsed as Record<string, unknown>;
+}
+
+function getCatalogoPrecioForPago(checkout: CheckoutRow): string | number | null {
+    if (
+        typeof checkout.catalogo_precio === 'string' ||
+        typeof checkout.catalogo_precio === 'number'
+    ) {
+        const text = String(checkout.catalogo_precio).trim();
+
+        if (text !== '') {
+            return checkout.catalogo_precio;
+        }
+    }
+
+    const snapshot = parseJsonObject(checkout.catalogo_snapshot);
+    const snapshotPrecio = snapshot?.precio;
+
+    if (
+        typeof snapshotPrecio === 'string' ||
+        typeof snapshotPrecio === 'number'
+    ) {
+        const text = String(snapshotPrecio).trim();
+
+        if (text !== '') {
+            return snapshotPrecio;
+        }
+    }
+
+    return null;
+}
+
 async function createPagoPagadoDesdeCheckout({
     checkout,
     transactionId,
@@ -92,6 +144,7 @@ async function createPagoPagadoDesdeCheckout({
             catalogo_titulo,
             catalogo_descripcion,
             catalogo_categoria,
+            catalogo_precio,
             catalogo_imagen,
             catalogo_archivo,
             catalogo_snapshot,
@@ -108,13 +161,14 @@ async function createPagoPagadoDesdeCheckout({
             pagado_at,
             bbva_webhook_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bbva', 'bbva', ?, ?, ?, 'pagado', NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bbva', 'bbva', ?, ?, ?, 'pagado', NOW(), NOW())
             ON DUPLICATE KEY UPDATE
             id = LAST_INSERT_ID(id),
             proveedor = 'bbva',
             transaccion_externa = VALUES(transaccion_externa),
             bbva_status = VALUES(bbva_status),
             respuesta = VALUES(respuesta),
+            catalogo_precio = COALESCE(catalogo_precio, VALUES(catalogo_precio)),
             estatus = 'pagado',
             pagado_at = COALESCE(pagado_at, NOW()),
             bbva_webhook_at = NOW()
@@ -126,6 +180,7 @@ async function createPagoPagadoDesdeCheckout({
         checkout.catalogo_titulo,
         checkout.catalogo_descripcion,
         checkout.catalogo_categoria,
+        getCatalogoPrecioForPago(checkout),
         checkout.catalogo_imagen,
         checkout.catalogo_archivo,
         normalizeJsonForDb(checkout.catalogo_snapshot),
@@ -136,7 +191,7 @@ async function createPagoPagadoDesdeCheckout({
 
         transactionId,
         providerStatus,
-        JSON.stringify(charge),
+        JSON.stringify(charge ?? null),
         ]
     );
 

@@ -1036,6 +1036,13 @@ export default function AdminPage() {
           </div>
 
           <Link
+            href="/admin/statistics"
+            className="px-4 py-2 bg-blue-950 border border-cnt-border text-blue-300 hover:text-white rounded-lg text-sm transition-colors"
+          >
+            Estadísticas
+          </Link>
+
+          <Link
             href="/admin/catalog"
             className="px-4 py-2 bg-yellow-900 border border-cnt-border text-yellow-300 hover:text-white rounded-lg text-sm transition-colors"
           >
