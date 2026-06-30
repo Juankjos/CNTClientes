@@ -14,6 +14,7 @@
     "busboy": "^1.6.0",
     "date-fns": "^4.1.0",
     "iron-session": "^8.0.3",
+    "jspdf": "^4.2.1",
     "mysql2": "^3.9.7",
     "next": "15.5.15",
     "nodemailer": "^8.0.5",
