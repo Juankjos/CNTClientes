@@ -100,6 +100,28 @@ function getMonthLabel(value: number) {
     return MONTHS.find((item) => item.value === value)?.label ?? String(value);
 }
 
+function formatPdfDateTime(value = new Date()) {
+    const dateText = new Intl.DateTimeFormat('es-MX', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+    }).format(value);
+
+    const parts = new Intl.DateTimeFormat('es-MX', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+    }).formatToParts(value);
+
+    const hour = parts.find((part) => part.type === 'hour')?.value ?? '00';
+    const minute = parts.find((part) => part.type === 'minute')?.value ?? '00';
+    const dayPeriod = parts.find((part) => part.type === 'dayPeriod')?.value ?? 'a.m.';
+
+    const normalizedPeriod = dayPeriod.toLowerCase().includes('p') ? 'p.m.' : 'a.m.';
+
+    return `${dateText}, ${hour}:${minute} ${normalizedPeriod}`;
+}
+
 export default function AdminStatisticsPage() {
     const now = new Date();
 
@@ -224,6 +246,8 @@ export default function AdminStatisticsPage() {
                 throw new Error('No hay datos anuales cargados para generar el PDF.');
             }
 
+            const reportYearData = yearData;
+
             const { jsPDF } = await import('jspdf');
 
             const doc = new jsPDF({
@@ -234,56 +258,377 @@ export default function AdminStatisticsPage() {
 
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
-            const margin = 40;
-            const lineHeight = 18;
-            let y = 50;
 
-            function addPageIfNeeded(extraSpace = 40) {
-                if (y + extraSpace > pageHeight - 50) {
+            const margin = 42;
+            const contentWidth = pageWidth - margin * 2;
+            const footerY = pageHeight - 26;
+
+            const generatedAt = formatPdfDateTime();
+
+            let y = 48;
+
+            const colors = {
+                black: [17, 24, 39] as [number, number, number],
+                dark: [24, 24, 27] as [number, number, number],
+                muted: [107, 114, 128] as [number, number, number],
+                softBorder: [229, 231, 235] as [number, number, number],
+                bubble: [249, 250, 251] as [number, number, number],
+                white: [255, 255, 255] as [number, number, number],
+                red: [220, 38, 38] as [number, number, number],
+            };
+
+            function setTextColor(color: [number, number, number]) {
+                doc.setTextColor(color[0], color[1], color[2]);
+            }
+
+            function setFillColor(color: [number, number, number]) {
+                doc.setFillColor(color[0], color[1], color[2]);
+            }
+
+            function setDrawColor(color: [number, number, number]) {
+                doc.setDrawColor(color[0], color[1], color[2]);
+            }
+
+            function addPageIfNeeded(extraSpace = 80) {
+                if (y + extraSpace > pageHeight - 56) {
                     doc.addPage();
-                    y = 50;
+                    y = 48;
                 }
             }
 
-            function addTitle(text: string) {
-                addPageIfNeeded(35);
-                doc.setFontSize(16);
-                doc.setFont('helvetica', 'bold');
-                doc.text(text, margin, y);
-                y += 28;
-            }
+            function drawHeader() {
+                setFillColor(colors.dark);
+                doc.roundedRect(margin, y, contentWidth, 72, 14, 14, 'F');
 
-            function addSubtitle(text: string) {
-                addPageIfNeeded(28);
-                doc.setFontSize(12);
+                setTextColor(colors.white);
                 doc.setFont('helvetica', 'bold');
-                doc.text(text, margin, y);
-                y += 22;
-            }
-
-            function addLine(label: string, value: string) {
-                addPageIfNeeded(lineHeight);
-
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'bold');
-                doc.text(`${label}:`, margin, y);
+                doc.setFontSize(18);
+                doc.text('Reporte anual de estadísticas', margin + 22, y + 30);
 
                 doc.setFont('helvetica', 'normal');
-                doc.text(value, margin + 170, y);
+                doc.setFontSize(9);
+                doc.text('CNT - Estadísticas administrativas', margin + 22, y + 50);
 
-                y += lineHeight;
+                y += 96;
             }
 
-            function addWrappedLine(text: string) {
-                const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+            function drawPeriodBubble() {
+                const boxHeight = 72;
 
-                for (const line of lines) {
-                    addPageIfNeeded(lineHeight);
-                    doc.setFontSize(9);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(line, margin, y);
-                    y += lineHeight;
-                }
+                setFillColor(colors.bubble);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.text('AÑO', margin + 18, y + 24);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text(String(chartsYear), margin + 100, y + 24);
+
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.text('GENERADO', margin + 18, y + 50);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text(generatedAt, margin + 100, y + 50);
+
+                y += boxHeight + 22;
+            }
+
+            function drawSectionTitle(title: string) {
+                addPageIfNeeded(42);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text(title, margin, y);
+
+                setDrawColor(colors.red);
+                doc.setLineWidth(1.5);
+                doc.line(margin, y + 8, margin + 42, y + 8);
+
+                y += 24;
+            }
+
+            function drawMetricCell(
+                x: number,
+                cellY: number,
+                width: number,
+                label: string,
+                value: string
+            ) {
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(7.5);
+                doc.text(label.toUpperCase(), x + 10, cellY + 14);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.text(value, x + 10, cellY + 30, {
+                    maxWidth: width - 20,
+                });
+            }
+
+            function drawSummaryBubble() {
+                const boxHeight = 150;
+                const headerHeight = 38;
+                const gridHeight = boxHeight - headerHeight;
+                const colWidth = contentWidth / 2;
+                const rowHeight = gridHeight / 2;
+
+                addPageIfNeeded(boxHeight + 20);
+
+                setFillColor(colors.bubble);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.text('Resumen anual', margin + 18, y + 24);
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+
+                doc.line(margin, y + headerHeight, margin + contentWidth, y + headerHeight);
+                doc.line(margin + colWidth, y + headerHeight, margin + colWidth, y + boxHeight);
+                doc.line(margin, y + headerHeight + rowHeight, margin + contentWidth, y + headerHeight + rowHeight);
+
+                const cells = [
+                    {
+                        label: 'Ingresos',
+                        value: formatMoney(reportYearData.summary.ingresos_pagados),
+                    },
+                    {
+                        label: 'Total de pagos',
+                        value: String(reportYearData.summary.total_pagos),
+                    },
+                    {
+                        label: 'Pagos de paga',
+                        value: String(reportYearData.summary.pagos_de_paga),
+                    },
+                    {
+                        label: 'Pagos gratuitos',
+                        value: String(reportYearData.summary.pagos_gratuitos),
+                    },
+                ];
+
+                cells.forEach((cell, index) => {
+                    const col = index % 2;
+                    const row = Math.floor(index / 2);
+
+                    const x = margin + colWidth * col + 18;
+                    const cellY = y + headerHeight + rowHeight * row + 24;
+
+                    setTextColor(colors.muted);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(8);
+                    doc.text(cell.label.toUpperCase(), x, cellY);
+
+                    setTextColor(colors.black);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(index === 0 ? 14 : 16);
+                    doc.text(cell.value, x, cellY + 25);
+                });
+
+                y += boxHeight + 28;
+            }
+
+            function drawMonthBubble(row: YearMonthlyRow) {
+                const boxHeight = 118;
+                const innerX = margin + 18;
+                const titleX = innerX + 18;
+
+                addPageIfNeeded(boxHeight + 14);
+
+                setFillColor(colors.white);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.red);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text('>', innerX, y + 27);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.text(row.label, titleX, y + 26);
+
+                const gridX = innerX;
+                const gridY = y + 45;
+                const gridWidth = contentWidth - 36;
+                const cellWidth = gridWidth / 2;
+                const rowHeight = 58 / 2;
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+
+                doc.roundedRect(gridX, gridY, gridWidth, 58, 8, 8, 'S');
+                doc.line(gridX + cellWidth, gridY, gridX + cellWidth, gridY + 58);
+                doc.line(gridX, gridY + rowHeight, gridX + gridWidth, gridY + rowHeight);
+
+                drawMetricCell(
+                    gridX,
+                    gridY,
+                    cellWidth,
+                    'Ingresos',
+                    formatMoney(row.ingresos_pagados)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY,
+                    cellWidth,
+                    'Total',
+                    String(row.total_pagos)
+                );
+
+                drawMetricCell(
+                    gridX,
+                    gridY + rowHeight,
+                    cellWidth,
+                    'De paga',
+                    String(row.pagos_de_paga)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY + rowHeight,
+                    cellWidth,
+                    'Gratuitos',
+                    String(row.pagos_gratuitos)
+                );
+
+                y += boxHeight + 12;
+            }
+
+            function drawItemBubble(item: YearItemRow) {
+                const boxX = margin;
+                const boxWidth = contentWidth;
+                const innerX = boxX + 18;
+                const titleX = innerX + 18;
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+
+                const titleLines = doc.splitTextToSize(item.titulo, boxWidth - 58);
+                const titleHeight = titleLines.length * 13;
+
+                const gridTopOffset = 24 + titleHeight + 16;
+                const gridHeight = 90;
+                const boxHeight = gridTopOffset + gridHeight + 18;
+
+                addPageIfNeeded(boxHeight + 14);
+
+                setFillColor(colors.white);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(boxX, y, boxWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.red);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text('>', innerX, y + 26);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.text(titleLines, titleX, y + 25);
+
+                const gridX = innerX;
+                const gridY = y + gridTopOffset;
+                const gridWidth = boxWidth - 36;
+                const cellWidth = gridWidth / 2;
+                const rowHeight = gridHeight / 3;
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+
+                doc.roundedRect(gridX, gridY, gridWidth, gridHeight, 8, 8, 'S');
+                doc.line(gridX + cellWidth, gridY, gridX + cellWidth, gridY + gridHeight);
+                doc.line(gridX, gridY + rowHeight, gridX + gridWidth, gridY + rowHeight);
+                doc.line(gridX, gridY + rowHeight * 2, gridX + gridWidth, gridY + rowHeight * 2);
+
+                drawMetricCell(
+                    gridX,
+                    gridY,
+                    cellWidth,
+                    'Categoría',
+                    formatCategoria(item.categoria)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY,
+                    cellWidth,
+                    'Ingresos',
+                    formatMoney(item.ingresos_pagados)
+                );
+
+                drawMetricCell(
+                    gridX,
+                    gridY + rowHeight,
+                    cellWidth,
+                    'De paga',
+                    String(item.pagos_de_paga)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY + rowHeight,
+                    cellWidth,
+                    'Gratuitos',
+                    String(item.pagos_gratuitos)
+                );
+
+                drawMetricCell(
+                    gridX,
+                    gridY + rowHeight * 2,
+                    cellWidth,
+                    'Total',
+                    String(item.total_pagos)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY + rowHeight * 2,
+                    cellWidth,
+                    'Participación',
+                    item.ingresos_pagados > 0 && reportYearData.summary.ingresos_pagados > 0
+                        ? `${((item.ingresos_pagados / reportYearData.summary.ingresos_pagados) * 100).toFixed(1)}%`
+                        : '0.0%'
+                );
+
+                y += boxHeight + 12;
+            }
+
+            function drawEmptyBubble(text: string) {
+                const boxHeight = 66;
+
+                addPageIfNeeded(boxHeight + 12);
+
+                setFillColor(colors.bubble);
+                setDrawColor(colors.softBorder);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text(text, margin + 18, y + 38);
+
+                y += boxHeight + 12;
             }
 
             doc.setProperties({
@@ -292,41 +637,26 @@ export default function AdminStatisticsPage() {
                 creator: 'CNT',
             });
 
-            addTitle(`Reporte anual de estadísticas ${chartsYear}`);
+            drawHeader();
+            drawPeriodBubble();
 
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, margin, y);
-            y += 28;
+            drawSummaryBubble();
 
-            addSubtitle('Resumen anual');
-            addLine('Ingresos', formatMoney(yearData.summary.ingresos_pagados));
-            addLine('Total de pagos', String(yearData.summary.total_pagos));
-            addLine('Pagos de paga', String(yearData.summary.pagos_de_paga));
-            addLine('Pagos gratuitos', String(yearData.summary.pagos_gratuitos));
+            drawSectionTitle('Detalle por mes');
 
-            y += 12;
-
-            addSubtitle('Datos por mes');
-
-            yearData.monthly.forEach((row) => {
-                addLine(
-                    row.label,
-                    `Ingresos: ${formatMoney(row.ingresos_pagados)} | De paga: ${row.pagos_de_paga} | Gratuitos: ${row.pagos_gratuitos} | Total: ${row.total_pagos}`
-                );
+            reportYearData.monthly.forEach((row) => {
+                drawMonthBubble(row);
             });
 
-            y += 12;
+            y += 8;
 
-            addSubtitle('Top 10 items');
+            drawSectionTitle('Top 10 items');
 
-            if (yearData.items.length === 0) {
-                addWrappedLine('No hay items registrados para este año.');
+            if (reportYearData.items.length === 0) {
+                drawEmptyBubble('No hay items registrados para este año.');
             } else {
-                yearData.items.forEach((item, index) => {
-                    addWrappedLine(
-                        `${index + 1}. ${item.titulo} | Categoría: ${formatCategoria(item.categoria)} | Ingresos: ${formatMoney(item.ingresos_pagados)} | De paga: ${item.pagos_de_paga} | Gratuitos: ${item.pagos_gratuitos} | Total: ${item.total_pagos}`
-                    );
+                reportYearData.items.forEach((item) => {
+                    drawItemBubble(item);
                 });
             }
 
@@ -334,12 +664,20 @@ export default function AdminStatisticsPage() {
 
             for (let index = 1; index <= totalPages; index += 1) {
                 doc.setPage(index);
-                doc.setFontSize(8);
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+                doc.line(margin, footerY - 16, pageWidth - margin, footerY - 16);
+
+                setTextColor(colors.muted);
                 doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.text('CNT - Estadísticas administrativas', margin, footerY);
+
                 doc.text(
                     `Página ${index} de ${totalPages}`,
-                    pageWidth - margin - 80,
-                    pageHeight - 25
+                    pageWidth - margin - 78,
+                    footerY
                 );
             }
 
@@ -360,6 +698,8 @@ export default function AdminStatisticsPage() {
                 throw new Error('No hay datos mensuales cargados para generar el PDF.');
             }
 
+            const reportData = data;
+
             const { jsPDF } = await import('jspdf');
 
             const doc = new jsPDF({
@@ -370,57 +710,280 @@ export default function AdminStatisticsPage() {
 
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
-            const margin = 40;
-            const lineHeight = 18;
-            const monthLabel = getMonthLabel(month);
-            let y = 50;
 
-            function addPageIfNeeded(extraSpace = 40) {
-                if (y + extraSpace > pageHeight - 50) {
+            const margin = 42;
+            const contentWidth = pageWidth - margin * 2;
+            const footerY = pageHeight - 26;
+
+            const monthLabel = getMonthLabel(month);
+            const generatedAt = formatPdfDateTime();
+
+            let y = 48;
+
+            const colors = {
+                black: [17, 24, 39] as [number, number, number],
+                dark: [24, 24, 27] as [number, number, number],
+                muted: [107, 114, 128] as [number, number, number],
+                border: [209, 213, 219] as [number, number, number],
+                softBorder: [229, 231, 235] as [number, number, number],
+                bubble: [249, 250, 251] as [number, number, number],
+                white: [255, 255, 255] as [number, number, number],
+                red: [220, 38, 38] as [number, number, number],
+            };
+
+            function setTextColor(color: [number, number, number]) {
+                doc.setTextColor(color[0], color[1], color[2]);
+            }
+
+            function setFillColor(color: [number, number, number]) {
+                doc.setFillColor(color[0], color[1], color[2]);
+            }
+
+            function setDrawColor(color: [number, number, number]) {
+                doc.setDrawColor(color[0], color[1], color[2]);
+            }
+
+            function addPageIfNeeded(extraSpace = 80) {
+                if (y + extraSpace > pageHeight - 56) {
                     doc.addPage();
-                    y = 50;
+                    y = 48;
                 }
             }
 
-            function addTitle(text: string) {
-                addPageIfNeeded(35);
-                doc.setFontSize(16);
-                doc.setFont('helvetica', 'bold');
-                doc.text(text, margin, y);
-                y += 28;
-            }
+            function drawHeader() {
+                setFillColor(colors.dark);
+                doc.roundedRect(margin, y, contentWidth, 72, 14, 14, 'F');
 
-            function addSubtitle(text: string) {
-                addPageIfNeeded(28);
-                doc.setFontSize(12);
+                setTextColor(colors.white);
                 doc.setFont('helvetica', 'bold');
-                doc.text(text, margin, y);
-                y += 22;
-            }
-
-            function addLine(label: string, value: string) {
-                addPageIfNeeded(lineHeight);
-
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'bold');
-                doc.text(`${label}:`, margin, y);
+                doc.setFontSize(18);
+                doc.text('Reporte mensual de estadísticas', margin + 22, y + 30);
 
                 doc.setFont('helvetica', 'normal');
-                doc.text(value, margin + 170, y);
+                doc.setFontSize(9);
+                doc.text('CNT - Estadísticas administrativas', margin + 22, y + 50);
 
-                y += lineHeight;
+                y += 96;
             }
 
-            function addWrappedLine(text: string) {
-                const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+            function drawPeriodBubble() {
+                const boxHeight = 72;
 
-                for (const line of lines) {
-                    addPageIfNeeded(lineHeight);
-                    doc.setFontSize(9);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(line, margin, y);
-                    y += lineHeight;
-                }
+                setFillColor(colors.bubble);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.text('MES Y AÑO', margin + 18, y + 24);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text(`${monthLabel} ${year}`, margin + 100, y + 24);
+
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.text('GENERADO', margin + 18, y + 50);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text(generatedAt, margin + 100, y + 50);
+
+                y += boxHeight + 22;
+            }
+
+            function drawSectionTitle(title: string) {
+                addPageIfNeeded(42);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text(title, margin, y);
+
+                setDrawColor(colors.red);
+                doc.setLineWidth(1.5);
+                doc.line(margin, y + 8, margin + 42, y + 8);
+
+                y += 24;
+            }
+
+            function drawSummaryBubble() {
+                const boxHeight = 118;
+                const headerHeight = 38;
+                const colWidth = contentWidth / 3;
+
+                addPageIfNeeded(boxHeight + 20);
+
+                setFillColor(colors.bubble);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.text('Resumen mensual', margin + 18, y + 24);
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+                doc.line(margin, y + headerHeight, margin + contentWidth, y + headerHeight);
+
+                doc.line(margin + colWidth, y + headerHeight, margin + colWidth, y + boxHeight);
+                doc.line(margin + colWidth * 2, y + headerHeight, margin + colWidth * 2, y + boxHeight);
+
+                const cells = [
+                    {
+                        label: 'Ingresos',
+                        value: formatMoney(reportData.summary.total_ingresos),
+                    },
+                    {
+                        label: 'Artículos vendidos',
+                        value: String(reportData.summary.pagos_count),
+                    },
+                    {
+                        label: 'Grupos',
+                        value: String(reportData.summary.grupos_count),
+                    },
+                ];
+
+                cells.forEach((cell, index) => {
+                    const x = margin + colWidth * index + 18;
+
+                    setTextColor(colors.muted);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(8);
+                    doc.text(cell.label.toUpperCase(), x, y + 66);
+
+                    setTextColor(colors.black);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(index === 0 ? 14 : 16);
+                    doc.text(cell.value, x, y + 90);
+                });
+
+                y += boxHeight + 28;
+            }
+
+            function drawMetricCell(
+                x: number,
+                cellY: number,
+                width: number,
+                label: string,
+                value: string
+            ) {
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(7.5);
+                doc.text(label.toUpperCase(), x + 10, cellY + 14);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.text(value, x + 10, cellY + 30, {
+                    maxWidth: width - 20,
+                });
+            }
+
+            function drawItemBubble(row: StatsRow) {
+                const boxX = margin;
+                const boxWidth = contentWidth;
+                const innerX = boxX + 18;
+                const titleX = innerX + 18;
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+
+                const titleLines = doc.splitTextToSize(row.titulo, boxWidth - 58);
+                const titleHeight = titleLines.length * 13;
+
+                const gridTopOffset = 24 + titleHeight + 16;
+                const gridHeight = 70;
+                const boxHeight = gridTopOffset + gridHeight + 18;
+
+                addPageIfNeeded(boxHeight + 14);
+
+                setFillColor(colors.white);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(boxX, y, boxWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.red);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text('>', innerX, y + 26);
+
+                setTextColor(colors.black);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.text(titleLines, titleX, y + 25);
+
+                const gridX = innerX;
+                const gridY = y + gridTopOffset;
+                const gridWidth = boxWidth - 36;
+                const cellWidth = gridWidth / 2;
+                const rowHeight = gridHeight / 2;
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+
+                doc.roundedRect(gridX, gridY, gridWidth, gridHeight, 8, 8, 'S');
+                doc.line(gridX + cellWidth, gridY, gridX + cellWidth, gridY + gridHeight);
+                doc.line(gridX, gridY + rowHeight, gridX + gridWidth, gridY + rowHeight);
+
+                drawMetricCell(
+                    gridX,
+                    gridY,
+                    cellWidth,
+                    'Categoría',
+                    formatCategoria(row.categoria)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY,
+                    cellWidth,
+                    'Monto pagado',
+                    formatMoney(row.monto_pagado)
+                );
+
+                drawMetricCell(
+                    gridX,
+                    gridY + rowHeight,
+                    cellWidth,
+                    'Pagos',
+                    String(row.pagos_count)
+                );
+
+                drawMetricCell(
+                    gridX + cellWidth,
+                    gridY + rowHeight,
+                    cellWidth,
+                    'Total ingresos',
+                    formatMoney(row.total_ingresos)
+                );
+
+                y += boxHeight + 12;
+            }
+
+            function drawEmptyBubble(text: string) {
+                const boxHeight = 66;
+
+                addPageIfNeeded(boxHeight + 12);
+
+                setFillColor(colors.bubble);
+                setDrawColor(colors.softBorder);
+                doc.roundedRect(margin, y, contentWidth, boxHeight, 14, 14, 'FD');
+
+                setTextColor(colors.muted);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text(text, margin + 18, y + 38);
+
+                y += boxHeight + 12;
             }
 
             doc.setProperties({
@@ -429,33 +992,18 @@ export default function AdminStatisticsPage() {
                 creator: 'CNT',
             });
 
-            addTitle('Reporte mensual de estadísticas');
+            drawHeader();
+            drawPeriodBubble();
 
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`${monthLabel} ${year}`, margin, y);
-            y += 18;
+            drawSummaryBubble();
 
-            doc.setFontSize(9);
-            doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, margin, y);
-            y += 28;
+            drawSectionTitle('Detalle por grupo');
 
-            addSubtitle('Resumen mensual');
-            addLine('Ingresos', formatMoney(data.summary.total_ingresos));
-            addLine('Total de artículos vendidos', String(data.summary.pagos_count));
-            addLine('Grupos', String(data.summary.grupos_count));
-
-            y += 12;
-
-            addSubtitle('Detalle numérico por grupo');
-
-            if (data.rows.length === 0) {
-                addWrappedLine('No hay pagos pagados para este mes.');
+            if (reportData.rows.length === 0) {
+                drawEmptyBubble('No hay pagos pagados para este mes.');
             } else {
-                data.rows.forEach((row, index) => {
-                    addWrappedLine(
-                        `${index + 1}. ${row.titulo} | Categoría: ${formatCategoria(row.categoria)} | Monto pagado: ${formatMoney(row.monto_pagado)} | Pagos: ${row.pagos_count} | Total ingresos: ${formatMoney(row.total_ingresos)}`
-                    );
+                reportData.rows.forEach((row) => {
+                    drawItemBubble(row);
                 });
             }
 
@@ -463,12 +1011,20 @@ export default function AdminStatisticsPage() {
 
             for (let index = 1; index <= totalPages; index += 1) {
                 doc.setPage(index);
-                doc.setFontSize(8);
+
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(0.8);
+                doc.line(margin, footerY - 16, pageWidth - margin, footerY - 16);
+
+                setTextColor(colors.muted);
                 doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.text('CNT - Estadísticas administrativas', margin, footerY);
+
                 doc.text(
                     `Página ${index} de ${totalPages}`,
-                    pageWidth - margin - 80,
-                    pageHeight - 25
+                    pageWidth - margin - 78,
+                    footerY
                 );
             }
 
@@ -496,110 +1052,6 @@ export default function AdminStatisticsPage() {
                 >
                 Volver al panel
                 </Link>
-            </div>
-
-            {pdfMsg && (
-                <div className="mb-6 rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300">
-                    {pdfMsg}
-                </div>
-            )}
-
-            <div className="mb-6 space-y-4">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <h2 className="text-white text-xl font-semibold">
-                        Gráficas del año {chartsYear}
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-500">
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-end gap-3">
-                        <div>
-                        <select
-                            value={chartsYear}
-                            onChange={(e) => setChartsYear(Number(e.target.value))}
-                            className="bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cnt-red"
-                        >
-                            {years.map((item) => (
-                            <option key={item} value={item}>
-                                {item}
-                            </option>
-                            ))}
-                        </select>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={fetchYearStats}
-                            className="cursor-pointer border px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
-                        >
-                            Actualizar gráficas
-                        </button>
-
-                        <button
-                            type="button"
-                            disabled={pdfLoading || yearLoading || !yearData}
-                            onClick={handleDownloadYearPdf}
-                            className="cursor-pointer border border-cnt-border px-4 py-2 bg-cnt-surface hover:border-cnt-red text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {pdfLoading ? 'Generando...' : 'PDF anual'}
-                        </button>
-                    </div>
-                </div>
-
-                {yearMsg && (
-                    <div className="rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300">
-                    {yearMsg}
-                    </div>
-                )}
-
-                {yearLoading ? (
-                    <div className="grid grid-cols-1 gap-4">
-                    {[...Array(4)].map((_, index) => (
-                        <div
-                        key={index}
-                        className="h-80 rounded-xl border border-cnt-border bg-cnt-surface animate-pulse"
-                        />
-                    ))}
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                        <GoogleColumnChart
-                            title={`Ingresos por mes (${chartsYear})`}
-                            data={monthlyRevenueChartData}
-                            height={360}
-                            vAxisTitle="Ingresos MXN"
-                            hAxisTitle="Mes"
-                            currencyColumns={[1]}
-                        />
-
-                        <GoogleColumnChart
-                            title={`Paga vs gratuitos por mes (${chartsYear})`}
-                            data={monthlyPaymentsChartData}
-                            height={360}
-                            vAxisTitle="Cantidad de pagos"
-                            hAxisTitle="Mes"
-                        />
-
-                        <GoogleColumnChart
-                            title={`Top 10 items por ingresos (${chartsYear})`}
-                            data={itemRevenueChartData}
-                            height={420}
-                            vAxisTitle="Ingresos MXN"
-                            hAxisTitle="Item de catálogo"
-                            currencyColumns={[1]}
-                        />
-
-                        <GoogleColumnChart
-                            title={`Top 10 items: Paga vs Gratuito (${chartsYear})`}
-                            data={itemPaymentsChartData}
-                            height={420}
-                            vAxisTitle="Cantidad de pagos"
-                            hAxisTitle="Item de catálogo"
-                        />
-                    </div>
-                )}
             </div>
 
             <div className="mb-6 rounded-xl border border-cnt-border bg-cnt-surface p-5">
@@ -641,7 +1093,7 @@ export default function AdminStatisticsPage() {
                     <button
                         type="button"
                         onClick={fetchStats}
-                        className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                        className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border hover:border-cnt-red text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         Actualizar
                     </button>
@@ -650,7 +1102,7 @@ export default function AdminStatisticsPage() {
                         type="button"
                         disabled={pdfLoading || loading || !data}
                         onClick={handleDownloadMonthPdf}
-                        className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border hover:border-cnt-red text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border hover:bg-red-700 border-cnt-red text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {pdfLoading ? 'Generando...' : 'PDF mensual'}
                     </button>
@@ -692,7 +1144,7 @@ export default function AdminStatisticsPage() {
                 </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-cnt-border">
+            <div className="mb-10 overflow-x-auto rounded-xl border border-cnt-border">
                 <table className="w-full text-sm">
                     <thead>
                         <tr className="border-b border-cnt-border bg-cnt-surface">
@@ -757,6 +1209,117 @@ export default function AdminStatisticsPage() {
                     </tbody>
                 </table>
             </div>
+
+            {pdfMsg && (
+                <div className="mb-6 rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300">
+                    {pdfMsg}
+                </div>
+            )}
+
+            <section className="mt-12 border-t border-cnt-border pt-8 space-y-5">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="mb-2 text-xs font-mono uppercase tracking-widest text-gray-500">
+                            Estadísticas anuales
+                        </p>
+
+                        <h2 className="text-white text-xl font-semibold">
+                            Gráficas del año {chartsYear}
+                        </h2>
+
+                        <p className="mt-1 text-sm text-gray-500">
+                            Comparativa anual de ingresos, artículos de paga y artículos gratuitos.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div>
+                        <select
+                            value={chartsYear}
+                            onChange={(e) => setChartsYear(Number(e.target.value))}
+                            className="bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cnt-red"
+                        >
+                            {years.map((item) => (
+                            <option key={item} value={item}>
+                                {item}
+                            </option>
+                            ))}
+                        </select>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={fetchYearStats}
+                            className="cursor-pointer border border-cnt-border px-4 py-2 bg-cnt-surface hover:border-cnt-red text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Actualizar gráficas
+                        </button>
+
+                        <button
+                            type="button"
+                            disabled={pdfLoading || yearLoading || !yearData}
+                            onClick={handleDownloadYearPdf}
+                            className="cursor-pointer border border-cnt-border px-4 py-2 bg-cnt-surface hover:bg-red-700 border-cnt-red text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {pdfLoading ? 'Generando...' : 'PDF anual'}
+                        </button>
+                    </div>
+                </div>
+
+                {yearMsg && (
+                    <div className="rounded-lg border border-cnt-red bg-red-950 px-4 py-3 text-sm text-red-300">
+                    {yearMsg}
+                    </div>
+                )}
+
+                {yearLoading ? (
+                    <div className="grid grid-cols-1 gap-4">
+                    {[...Array(4)].map((_, index) => (
+                        <div
+                        key={index}
+                        className="h-80 rounded-xl border border-cnt-border bg-cnt-surface animate-pulse"
+                        />
+                    ))}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                        <GoogleColumnChart
+                            title={`Ingresos por mes (${chartsYear})`}
+                            data={monthlyRevenueChartData}
+                            height={360}
+                            vAxisTitle="Ingresos MXN"
+                            hAxisTitle="Mes"
+                            currencyColumns={[1]}
+                        />
+
+                        <GoogleColumnChart
+                            title={`Paga vs gratuitos por mes (${chartsYear})`}
+                            data={monthlyPaymentsChartData}
+                            height={360}
+                            vAxisTitle="Cantidad de pagos"
+                            hAxisTitle="Mes"
+                        />
+
+                        <GoogleColumnChart
+                            title={`Top 10 items por ingresos (${chartsYear})`}
+                            data={itemRevenueChartData}
+                            height={420}
+                            vAxisTitle="Ingresos MXN"
+                            hAxisTitle="Item de catálogo"
+                            currencyColumns={[1]}
+                        />
+
+                        <GoogleColumnChart
+                            title={`Top 10 items: Paga vs Gratuito (${chartsYear})`}
+                            data={itemPaymentsChartData}
+                            height={420}
+                            vAxisTitle="Cantidad de pagos"
+                            hAxisTitle="Item de catálogo"
+                        />
+                    </div>
+                )}
+            </section>
+
         </div>
     );
 }
