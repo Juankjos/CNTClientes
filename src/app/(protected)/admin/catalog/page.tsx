@@ -470,7 +470,7 @@ export default function AdminCatalogPage() {
           href="/admin"
           className="px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded-lg text-sm transition-colors"
         >
-          ← Volver al panel
+          Volver al panel
         </Link>
       </div>
 

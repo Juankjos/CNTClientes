@@ -297,10 +297,12 @@ export default function AdminStatisticsPage() {
             }
 
             function drawHeader() {
-                setFillColor(colors.dark);
-                doc.roundedRect(margin, y, contentWidth, 72, 14, 14, 'F');
+                setFillColor(colors.white);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, 72, 14, 14, 'FD');
 
-                setTextColor(colors.white);
+                setTextColor(colors.black);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(18);
                 doc.text('Reporte anual de estadísticas', margin + 22, y + 30);
@@ -414,11 +416,11 @@ export default function AdminStatisticsPage() {
                         value: String(reportYearData.summary.total_pagos),
                     },
                     {
-                        label: 'Pagos de paga',
+                        label: 'De paga',
                         value: String(reportYearData.summary.pagos_de_paga),
                     },
                     {
-                        label: 'Pagos gratuitos',
+                        label: 'Gratuitos',
                         value: String(reportYearData.summary.pagos_gratuitos),
                     },
                 ];
@@ -751,10 +753,12 @@ export default function AdminStatisticsPage() {
             }
 
             function drawHeader() {
-                setFillColor(colors.dark);
-                doc.roundedRect(margin, y, contentWidth, 72, 14, 14, 'F');
+                setFillColor(colors.white);
+                setDrawColor(colors.softBorder);
+                doc.setLineWidth(1);
+                doc.roundedRect(margin, y, contentWidth, 72, 14, 14, 'FD');
 
-                setTextColor(colors.white);
+                setTextColor(colors.black);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(18);
                 doc.text('Reporte mensual de estadísticas', margin + 22, y + 30);
