@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
         n.mensaje,
         n.url,
         n.leida_at,
-        n.created_at
+        DATE_FORMAT(n.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
       FROM notificaciones_clientes n
       LEFT JOIN usuarios_clientes actor
         ON actor.id = n.actor_usuario_id

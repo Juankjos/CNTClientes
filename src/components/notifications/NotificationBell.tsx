@@ -30,11 +30,33 @@ const TYPE_STYLE: Record<string, string> = {
     paquete_fin: 'bg-orange-950 text-orange-300 border-orange-800',
 };
 
+function parseMysqlUtcDate(value: string) {
+    const text = String(value ?? '').trim();
+
+    if (!text) return null;
+
+    if (text.includes('T') && /Z$|[+-]\d{2}:\d{2}$/.test(text)) {
+        const date = new Date(text);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const normalized = text.replace(' ', 'T');
+    const date = new Date(`${normalized}Z`);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatNotificationDate(value: string) {
-    return new Date(value).toLocaleString('es-MX', {
+    const date = parseMysqlUtcDate(value);
+
+    if (!date) return '—';
+
+    return new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'America/Mexico_City',
         dateStyle: 'short',
         timeStyle: 'short',
-    });
+        hour12: true,
+    }).format(date);
 }
 
 export default function NotificationBell() {
