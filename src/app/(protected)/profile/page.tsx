@@ -830,7 +830,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
+                  className="cursor-pointer absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
                   aria-label={
                     showCurrentPassword
                       ? 'Ocultar contraseña actual'
@@ -860,7 +860,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setShowNewPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
+                  className="cursor-pointer absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
                   aria-label={
                     showNewPassword
                       ? 'Ocultar nueva contraseña'

@@ -184,7 +184,7 @@ function LoginPageContent() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
+                    className="cursor-pointer absolute inset-y-0 right-3 flex items-center text-xs text-gray-400 hover:text-white transition-colors"
                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     aria-pressed={showPassword}
                   >
