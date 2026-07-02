@@ -35,6 +35,12 @@ type FormularioDetalle = {
   usa_hora_cita?: number | boolean;
   hora_cita?: string | null;
 
+  bloquea_sabado?: number | boolean;
+  bloquea_domingo?: number | boolean;
+  bloquea_dias_festivos?: number | boolean;
+  bloquea_fechas_personalizadas?: number | boolean;
+  fechas_bloqueadas_json?: string[] | string | null;
+
   archivos_subidos?: UploadedPeticionFile[];
   archivos_count?: number;
   archivos_eliminados_at?: string | null;
@@ -144,6 +150,51 @@ function archivoDownloadUrl(archivo: UploadedPeticionFile) {
 
 function toBooleanDb(value: unknown) {
   return value === true || value === 1 || value === '1';
+}
+
+function formatDias(value: unknown) {
+  const dias = Number(value);
+
+  if (!Number.isInteger(dias) || dias <= 0) return null;
+
+  return `${dias} día${dias === 1 ? '' : 's'}`;
+}
+
+function parseFechasBloqueadas(value: unknown): string[] {
+  let parsed = value;
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return Array.from(
+    new Set(
+      parsed
+        .map((item) => String(item).trim())
+        .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+    )
+  ).sort();
+}
+
+function formatDiasBloqueados({
+  bloqueaSabado,
+  bloqueaDomingo,
+}: {
+  bloqueaSabado: boolean;
+  bloqueaDomingo: boolean;
+}) {
+  const dias = [
+    bloqueaSabado ? 'Sábados' : null,
+    bloqueaDomingo ? 'Domingos' : null,
+  ].filter(Boolean);
+
+  return dias.join(' y ');
 }
 
 function peticionEstatusColor(estatus?: string | null) {
@@ -274,6 +325,36 @@ export default function VerFormularioPage() {
     return item[`domicilio_${slot}` as keyof FormularioDetalle] ?? 'No disponible';
   }, [item]);
 
+  const rangoDiasTexto = useMemo(() => {
+    if (!item) return null;
+
+    return formatDias(item.rango_dias ?? item.catalogo_rango_dias);
+  }, [item]);
+
+  const bloqueaSabado = toBooleanDb(item?.bloquea_sabado);
+  const bloqueaDomingo = toBooleanDb(item?.bloquea_domingo);
+  const bloqueaDiasFestivos = toBooleanDb(item?.bloquea_dias_festivos);
+  const bloqueaFechasPersonalizadas = toBooleanDb(item?.bloquea_fechas_personalizadas);
+
+  const fechasBloqueadas = useMemo(() => {
+    return parseFechasBloqueadas(item?.fechas_bloqueadas_json);
+  }, [item]);
+
+  const diasFinSemanaBloqueados = formatDiasBloqueados({
+    bloqueaSabado,
+    bloqueaDomingo,
+  });
+
+  const tieneRestriccionesRango =
+    bloqueaSabado ||
+    bloqueaDomingo ||
+    bloqueaDiasFestivos ||
+    (bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0);
+
+  const itemTieneRango =
+    toBooleanDb(item?.usa_rango_fechas) &&
+    Boolean(rangoDiasTexto);
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto space-y-4 animate-pulse">
@@ -388,13 +469,81 @@ export default function VerFormularioPage() {
           </div>
         )}
 
-        {Number(item.rango_dias) > 0 && (
+        {itemTieneRango && (
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
-              Total de días
+              Rango de fechas
             </p>
-            <div className="text-white px-1 py-1 text-sm">
-              {Number(item.rango_dias)} día{Number(item.rango_dias) === 1 ? '' : 's'}
+
+            <div className="rounded-xl border border-blue-900/60 bg-blue-950/20 p-4">
+              <p className="text-white font-semibold">
+                Cubre {rangoDiasTexto}.
+              </p>
+
+              {item.fecha_fin && (
+                <p className="text-sm text-gray-400 mt-1">
+                  Fecha final calculada: {toDateOnlyDisplay(item.fecha_fin)}
+                </p>
+              )}
+
+              {tieneRestriccionesRango && (
+                <div className="mt-4 rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3">
+                  <p className="text-xs text-yellow-300 uppercase tracking-widest mb-2">
+                    El paquete omitió las siguientes fechas
+                  </p>
+
+                  <p className="text-xs text-gray-400 mb-3">
+                    Se conserva la cantidad de {rangoDiasTexto} contratados. Las fechas omitidas no cuentan dentro del rango aplicable.
+                  </p>
+
+                  <div className="space-y-3 text-sm">
+                    {(bloqueaSabado || bloqueaDomingo) && (
+                      <div>
+                        <p className="text-white font-semibold">
+                          Se omiten los días:
+                        </p>
+                        <p className="text-gray-400">
+                          {diasFinSemanaBloqueados}
+                        </p>
+                      </div>
+                    )}
+
+                    {bloqueaDiasFestivos && (
+                      <div>
+                        <p className="text-white font-semibold">
+                          Se omiten días festivos:
+                        </p>
+                        <p className="text-gray-400">
+                          1 de enero, 2 de febrero, 16 de marzo, 1 de mayo, 16 de septiembre, 20 de noviembre y 25 de diciembre.
+                        </p>
+                      </div>
+                    )}
+
+                    {bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0 && (
+                      <div>
+                        <p className="text-white font-semibold">
+                          Se omitieron fechas personalizadas:
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {fechasBloqueadas.map((fecha) => (
+                            <span
+                              key={fecha}
+                              className="rounded-full border border-yellow-800/70 bg-cnt-dark px-3 py-1 text-xs text-yellow-200"
+                            >
+                              {toDateOnlyDisplay(fecha)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-yellow-300 mt-3">
+                    Las fechas no incluidas se omitieron y el rango se extendió hasta completar los días aplicables.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

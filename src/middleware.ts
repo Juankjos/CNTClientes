@@ -18,6 +18,7 @@ const PUBLIC_PATHS = [
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/cron/peticiones/cleanup-archivos',
+  '/api/cron/peticiones/notificaciones-paquetes',
 ];
 
 const ADMIN_PATHS = ['/admin', '/api/admin'];

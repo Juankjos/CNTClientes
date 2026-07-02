@@ -24,6 +24,10 @@ const TYPE_STYLE: Record<string, string> = {
     cambio_estatus: 'bg-purple-950 text-purple-300 border-purple-800',
     cambio_fecha: 'bg-green-950 text-green-300 border-green-800',
     archivos_eliminados: 'bg-red-950 text-red-300 border-red-800',
+
+    paquete_inicio: 'bg-green-950 text-green-300 border-green-800',
+    paquete_dia: 'bg-cyan-950 text-cyan-300 border-cyan-800',
+    paquete_fin: 'bg-orange-950 text-orange-300 border-orange-800',
 };
 
 function formatNotificationDate(value: string) {
@@ -236,7 +240,7 @@ export default function NotificationBell() {
                         {notification.mensaje}
                     </p>
 
-                    <p className="mt-2 text-[10px] text-gray-600">
+                    <p className="mt-2 text-[10px] text-white">
                         {formatNotificationDate(notification.created_at)}
                     </p>
                     </button>

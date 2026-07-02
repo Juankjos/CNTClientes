@@ -28,6 +28,70 @@ function parseArchivosSubidos(value: unknown) {
   return parsed;
 }
 
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function toBooleanDb(value: unknown) {
+  return value === true || value === 1 || value === '1';
+}
+
+function getSnapshotBoolean(
+  snapshot: Record<string, unknown> | null,
+  key: string
+) {
+  return toBooleanDb(snapshot?.[key]);
+}
+
+function getSnapshotFechasBloqueadas(snapshot: Record<string, unknown> | null) {
+  const value =
+    snapshot?.fechas_bloqueadas_json ??
+    snapshot?.fechas_bloqueadas ??
+    [];
+
+  let parsed = value;
+
+  if (Buffer.isBuffer(parsed)) {
+    parsed = parsed.toString('utf8');
+  }
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return Array.from(
+    new Set(
+      parsed
+        .map((item) => String(item).trim())
+        .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+    )
+  ).sort();
+}
+
 export async function GET(_req: NextRequest, { params }: RouteContext) {
   try {
     const session = await getSession();
@@ -121,11 +185,28 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
 
     const row = rows[0];
     const archivos = parseArchivosSubidos(row.archivos_subidos);
+    const catalogoSnapshot = parseJsonObject(row.catalogo_snapshot);
+
+    const bloqueaSabado = getSnapshotBoolean(catalogoSnapshot, 'bloquea_sabado');
+    const bloqueaDomingo = getSnapshotBoolean(catalogoSnapshot, 'bloquea_domingo');
+    const bloqueaDiasFestivos = getSnapshotBoolean(catalogoSnapshot, 'bloquea_dias_festivos');
+    const bloqueaFechasPersonalizadas = getSnapshotBoolean(
+      catalogoSnapshot,
+      'bloquea_fechas_personalizadas'
+    );
+
+    const fechasBloqueadas = getSnapshotFechasBloqueadas(catalogoSnapshot);
 
     return NextResponse.json({
       ...row,
       archivos_subidos: archivos,
       archivos_count: archivos.length,
+
+      bloquea_sabado: bloqueaSabado,
+      bloquea_domingo: bloqueaDomingo,
+      bloquea_dias_festivos: bloqueaDiasFestivos,
+      bloquea_fechas_personalizadas: bloqueaFechasPersonalizadas,
+      fechas_bloqueadas_json: fechasBloqueadas,
     });
   } catch (error) {
     console.error('[GET /api/peticiones/[id]]', error);

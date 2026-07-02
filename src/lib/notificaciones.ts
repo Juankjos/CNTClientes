@@ -1,3 +1,4 @@
+//src/lib/notificaciones.ts
 import { pool } from '@/lib/db';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
@@ -6,7 +7,10 @@ export type NotificationType =
   | 'comentario_admin'
   | 'cambio_estatus'
   | 'cambio_fecha'
-  | 'archivos_eliminados';
+  | 'archivos_eliminados'
+  | 'paquete_inicio'
+  | 'paquete_dia'
+  | 'paquete_fin';
 
 type CreateNotificationInput = {
   usuarioId: number;
@@ -16,25 +20,52 @@ type CreateNotificationInput = {
   titulo: string;
   mensaje: string;
   url?: string | null;
+  dedupeKey?: string | null;
 };
 
 export async function createNotification(input: CreateNotificationInput) {
-  await pool.execute<ResultSetHeader>(
-    `
-    INSERT INTO notificaciones_clientes
-      (usuario_id, actor_usuario_id, peticion_id, tipo, titulo, mensaje, url)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      input.usuarioId,
-      input.actorUsuarioId ?? null,
-      input.peticionId ?? null,
-      input.tipo,
-      input.titulo,
-      input.mensaje,
-      input.url ?? null,
-    ]
-  );
+  try {
+    const [result] = await pool.execute<ResultSetHeader>(
+      `
+      INSERT INTO notificaciones_clientes
+        (
+          usuario_id,
+          actor_usuario_id,
+          peticion_id,
+          tipo,
+          titulo,
+          mensaje,
+          url,
+          dedupe_key
+        )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        input.usuarioId,
+        input.actorUsuarioId ?? null,
+        input.peticionId ?? null,
+        input.tipo,
+        input.titulo,
+        input.mensaje,
+        input.url ?? null,
+        input.dedupeKey ?? null,
+      ]
+    );
+
+    return {
+      inserted: result.affectedRows > 0,
+      duplicated: false,
+    };
+  } catch (error: any) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      return {
+        inserted: false,
+        duplicated: true,
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function notifyAdmins(input: {
