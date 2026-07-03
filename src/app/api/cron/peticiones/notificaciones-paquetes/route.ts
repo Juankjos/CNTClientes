@@ -1,4 +1,4 @@
-//src/appp/api/cron/peticiones/notificaciones-paquetes/route.ts
+//src/app/api/cron/peticiones/notificaciones-paquetes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { createNotification, type NotificationType } from '@/lib/notificaciones';
