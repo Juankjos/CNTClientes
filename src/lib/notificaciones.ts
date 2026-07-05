@@ -10,7 +10,8 @@ export type NotificationType =
   | 'archivos_eliminados'
   | 'paquete_inicio'
   | 'paquete_dia'
-  | 'paquete_fin';
+  | 'paquete_fin'
+  | 'paquete_omitido';
 
 type CreateNotificationInput = {
   usuarioId: number;

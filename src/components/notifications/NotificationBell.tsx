@@ -28,6 +28,7 @@ const TYPE_STYLE: Record<string, string> = {
     paquete_inicio: 'bg-green-950 text-green-300 border-green-800',
     paquete_dia: 'bg-cyan-950 text-cyan-300 border-cyan-800',
     paquete_fin: 'bg-orange-950 text-orange-300 border-orange-800',
+    paquete_omitido: 'bg-gray-900 text-gray-300 border-gray-700',
 };
 
 function parseMysqlUtcDate(value: string) {
