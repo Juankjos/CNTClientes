@@ -306,7 +306,7 @@ function buildNotification(input: {
   if (skipReasons.length > 0) {
     tipo = 'paquete_omitido';
     titulo = 'Día omitido de tu paquete';
-    mensaje = `Hoy se omite el día de tu paquete "${catalogoTitulo}" porque no entra dentro de los días contratados. Proseguiremos posteriormente con regularidad.`;
+    mensaje = `Hoy se omite el día de tu paquete "${catalogoTitulo}" porque no entra dentro de los días contratados. Proseguiremos posteriormente.`;
 
     return {
       tipo,
