@@ -289,6 +289,7 @@ export default function AdminPage() {
     username: '',
     email: '',
     password: '',
+    confirmPassword: '',
     rol: 'cliente' as 'admin' | 'cliente',
     nombre: '',
     apellidos: '',
@@ -332,6 +333,24 @@ export default function AdminPage() {
 
   async function handleCreateUser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (createUserForm.password !== createUserForm.confirmPassword) {
+      setCreateUserMsg({
+        type: 'err',
+        text: 'La contraseña y la confirmación no coinciden.',
+      });
+
+      return;
+    }
+
+    if (createUserForm.password.length < 8) {
+      setCreateUserMsg({
+        type: 'err',
+        text: 'La contraseña debe tener al menos 8 caracteres.',
+      });
+
+      return;
+    }
 
     try {
       setCreatingUser(true);
@@ -1182,16 +1201,38 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <input
                     value={createUserForm.password}
-                    onChange={(e) => setCreateUserForm((f) => ({ ...f, password: e.target.value }))}
+                    onChange={(e) =>
+                      setCreateUserForm((f) => ({ ...f, password: e.target.value }))
+                    }
                     placeholder="Contraseña"
                     type="password"
                     required
                     minLength={8}
+                    autoComplete="new-password"
                     className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
                   />
+
+                  <input
+                    value={createUserForm.confirmPassword}
+                    onChange={(e) =>
+                      setCreateUserForm((f) => ({ ...f, confirmPassword: e.target.value }))
+                    }
+                    placeholder="Confirmar contraseña"
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    className={`w-full bg-cnt-dark border text-white rounded-lg px-4 py-3 text-sm focus:outline-none transition-colors ${
+                      createUserForm.confirmPassword &&
+                      createUserForm.password !== createUserForm.confirmPassword
+                        ? 'border-cnt-red focus:border-cnt-red'
+                        : 'border-cnt-border focus:border-cnt-red'
+                    }`}
+                  />
+
                   <select
                     value={createUserForm.rol}
                     onChange={(e) =>
@@ -1206,6 +1247,13 @@ export default function AdminPage() {
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
+
+                {createUserForm.confirmPassword &&
+                  createUserForm.password !== createUserForm.confirmPassword && (
+                    <p className="text-xs text-red-300">
+                      La contraseña y la confirmación no coinciden.
+                    </p>
+                  )}
 
                 {createUserForm.rol === 'cliente' && (
                   <div className="space-y-4">

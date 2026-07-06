@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
     const username = String(body.username ?? '').trim();
     const email = String(body.email ?? '').trim().toLowerCase();
     const password = String(body.password ?? '');
+    const confirmPassword = String(body.confirmPassword ?? '');
     const rol = body.rol === 'admin' ? 'admin' : 'cliente';
 
     const nombre = String(body.nombre ?? '').trim();
@@ -116,9 +117,9 @@ export async function POST(req: NextRequest) {
     const telefono = String(body.telefono ?? '').trim();
     const empresa = String(body.empresa ?? '').trim();
 
-    if (!username || !email || !password) {
+    if (!username || !email || !password || !confirmPassword) {
       return NextResponse.json(
-        { error: 'Campos requeridos: username, email, password' },
+        { error: 'Campos requeridos: username, email, password y confirmación de contraseña' },
         { status: 400 }
       );
     }
@@ -130,6 +131,13 @@ export async function POST(req: NextRequest) {
     if (password.length < 8) {
       return NextResponse.json(
         { error: 'La contraseña debe tener al menos 8 caracteres' },
+        { status: 400 }
+      );
+    }
+
+    if (password !== confirmPassword) {
+      return NextResponse.json(
+        { error: 'La contraseña y la confirmación no coinciden' },
         { status: 400 }
       );
     }
