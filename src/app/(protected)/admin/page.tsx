@@ -297,6 +297,30 @@ export default function AdminPage() {
     empresa: '',
   };
 
+  type EditUserForm = {
+    username: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+    rol: 'admin' | 'cliente';
+    nombre: string;
+    apellidos: string;
+    telefono: string;
+    empresa: string;
+  };
+
+  const emptyEditUserForm: EditUserForm = {
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    rol: 'cliente',
+    nombre: '',
+    apellidos: '',
+    telefono: '',
+    empresa: '',
+  };
+
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [createUserMsg, setCreateUserMsg] = useState<{
@@ -304,6 +328,10 @@ export default function AdminPage() {
     text: string;
   } | null>(null);
   const [createUserForm, setCreateUserForm] = useState(emptyCreateUserForm);
+  const [editUserOpen, setEditUserOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [savingEditUser, setSavingEditUser] = useState(false);
+  const [editUserForm, setEditUserForm] = useState<EditUserForm>(emptyEditUserForm);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -388,6 +416,170 @@ export default function AdminPage() {
       });
     } finally {
       setCreatingUser(false);
+    }
+  }
+
+  function openEditUserModal(user: any) {
+    setEditingUser(user);
+
+    setEditUserForm({
+      username: String(user.username ?? ''),
+      email: String(user.email ?? ''),
+      password: '',
+      confirmPassword: '',
+      rol: user.rol === 'admin' ? 'admin' : 'cliente',
+      nombre: String(user.nombre ?? ''),
+      apellidos: String(user.apellidos ?? ''),
+      telefono: String(user.telefono ?? ''),
+      empresa: String(user.empresa ?? ''),
+    });
+
+    setEditUserOpen(true);
+  }
+
+  async function cancelEditUser() {
+    const result = await Swal.fire({
+      title: '¿Cancelar edición?',
+      text: 'Los cambios no guardados se perderán.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cancelar',
+      cancelButtonText: 'Seguir editando',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
+    });
+
+    if (!result.isConfirmed) return;
+
+    setEditUserOpen(false);
+    setEditingUser(null);
+    setEditUserForm(emptyEditUserForm);
+
+    await Swal.fire({
+      title: 'Edición cancelada',
+      text: 'No se realizaron cambios en el usuario.',
+      icon: 'info',
+      confirmButtonColor: '#dc2626',
+      background: '#111827',
+      color: '#ffffff',
+    });
+  }
+
+  async function saveEditUser(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!editingUser) return;
+
+    if (editUserForm.password || editUserForm.confirmPassword) {
+      if (editUserForm.password !== editUserForm.confirmPassword) {
+        await Swal.fire({
+          title: 'Contraseñas diferentes',
+          text: 'La contraseña y la confirmación no coinciden.',
+          icon: 'error',
+          confirmButtonColor: '#dc2626',
+          background: '#111827',
+          color: '#ffffff',
+        });
+
+        return;
+      }
+
+      if (editUserForm.password.length < 8) {
+        await Swal.fire({
+          title: 'Contraseña inválida',
+          text: 'La contraseña debe tener al menos 8 caracteres.',
+          icon: 'error',
+          confirmButtonColor: '#dc2626',
+          background: '#111827',
+          color: '#ffffff',
+        });
+
+        return;
+      }
+    }
+
+    const confirm = await Swal.fire({
+      title: '¿Guardar cambios?',
+      text: `Se actualizará el usuario ${editUserForm.username}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, guardar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
+    });
+
+    if (!confirm.isConfirmed) {
+      await Swal.fire({
+        title: 'Guardado cancelado',
+        text: 'No se aplicaron cambios.',
+        icon: 'info',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+
+      return;
+    }
+
+    try {
+      setSavingEditUser(true);
+
+      const payload: any = {
+        username: editUserForm.username,
+        email: editUserForm.email,
+        rol: editUserForm.rol,
+        nombre: editUserForm.nombre,
+        apellidos: editUserForm.apellidos,
+        telefono: editUserForm.telefono,
+        empresa: editUserForm.empresa,
+      };
+
+      if (editUserForm.password.trim()) {
+        payload.password = editUserForm.password;
+      }
+
+      const res = await fetch(apiPath(`/api/admin/users/${editingUser.id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || data?.detail || `HTTP ${res.status}`);
+      }
+
+      await fetchUsers();
+
+      setEditUserOpen(false);
+      setEditingUser(null);
+      setEditUserForm(emptyEditUserForm);
+
+      await Swal.fire({
+        title: 'Usuario actualizado',
+        text: 'Los cambios se guardaron correctamente.',
+        icon: 'success',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    } catch (error) {
+      await Swal.fire({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'No se pudo actualizar el usuario.',
+        icon: 'error',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    } finally {
+      setSavingEditUser(false);
     }
   }
 
@@ -1009,12 +1201,72 @@ export default function AdminPage() {
   }, []);
 
   async function toggleUser(id: number, activo: number) {
-    await fetch(apiPath(`/api/admin/users/${id}`), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activo: activo === 1 ? 0 : 1 }),
+    const nextActivo = activo === 1 ? 0 : 1;
+    const activating = nextActivo === 1;
+
+    const confirm = await Swal.fire({
+      title: activating ? '¿Activar cliente?' : '¿Desactivar cliente?',
+      text: activating
+        ? 'El cliente podrá acceder nuevamente.'
+        : 'El cliente no podrá acceder mientras esté desactivado.',
+      icon: activating ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonText: activating ? 'Sí, activar' : 'Sí, desactivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: activating ? '#16a34a' : '#dc2626',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
     });
-    fetchUsers();
+
+    if (!confirm.isConfirmed) {
+      await Swal.fire({
+        title: 'Acción cancelada',
+        text: 'No se modificó el estado del cliente.',
+        icon: 'info',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+
+      return;
+    }
+
+    try {
+      const res = await fetch(apiPath(`/api/admin/users/${id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: nextActivo }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || data?.detail || `HTTP ${res.status}`);
+      }
+
+      await fetchUsers();
+
+      await Swal.fire({
+        title: activating ? 'Cliente activado' : 'Cliente desactivado',
+        text: activating
+          ? 'El cliente fue activado correctamente.'
+          : 'El cliente fue desactivado correctamente.',
+        icon: 'success',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    } catch (error) {
+      await Swal.fire({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'No se pudo actualizar el cliente.',
+        icon: 'error',
+        confirmButtonColor: '#dc2626',
+        background: '#111827',
+        color: '#ffffff',
+      });
+    }
   }
 
   async function desbloquearUser(id: number) {
@@ -1389,13 +1641,21 @@ export default function AdminPage() {
                       </td>
 
                       <td className="px-4 py-3">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openEditUserModal(u)}
+                            className="cursor-pointer px-2 py-1 bg-blue-950/40 border border-blue-800 text-blue-300 hover:text-white rounded text-xs transition-colors"
+                          >
+                            Editar
+                          </button>
+
                           <button
                             onClick={() => toggleUser(u.id, u.activo)}
                             className="cursor-pointer px-2 py-1 bg-cnt-surface border border-cnt-border text-gray-400 hover:text-white rounded text-xs transition-colors"
                           >
                             {u.activo ? 'Desactivar' : 'Activar'}
                           </button>
+
                           {u.bloqueado_hasta && (
                             <button
                               onClick={() => desbloquearUser(u.id)}
@@ -2546,6 +2806,192 @@ export default function AdminPage() {
                 </div>
               ) : null}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================== EDITAR USUARIO MODAL ======================== */}
+      {editUserOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cnt-border bg-cnt-dark shadow-2xl">
+            <div className="p-6 border-b border-cnt-border flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                  Editar usuario
+                </p>
+
+                <h2 className="text-white text-xl font-semibold">
+                  {editingUser?.username ?? 'Usuario'}
+                </h2>
+
+                <p className="text-gray-500 text-sm mt-1">
+                  Puedes modificar datos de acceso y datos del cliente.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={savingEditUser}
+                onClick={cancelEditUser}
+                className="cursor-pointer px-3 py-2 rounded-lg border border-cnt-border text-gray-300 hover:text-white disabled:opacity-60"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <form onSubmit={saveEditUser} className="p-6 space-y-5">
+              <div>
+                <p className="text-white text-sm font-semibold mb-1">
+                  Datos de acceso
+                </p>
+                <p className="text-xs text-gray-500">
+                  Deja la contraseña vacía si no deseas cambiarla.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  value={editUserForm.username}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, username: e.target.value }))
+                  }
+                  placeholder="Username"
+                  required
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+
+                <input
+                  value={editUserForm.email}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                  placeholder="Correo electrónico"
+                  type="email"
+                  required
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input
+                  value={editUserForm.password}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, password: e.target.value }))
+                  }
+                  placeholder="Nueva contraseña"
+                  type="password"
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+
+                <input
+                  value={editUserForm.confirmPassword}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, confirmPassword: e.target.value }))
+                  }
+                  placeholder="Confirmar contraseña"
+                  type="password"
+                  minLength={8}
+                  autoComplete="new-password"
+                  className={`w-full bg-cnt-surface border text-white rounded-lg px-4 py-3 text-sm focus:outline-none transition-colors ${
+                    editUserForm.confirmPassword &&
+                    editUserForm.password !== editUserForm.confirmPassword
+                      ? 'border-cnt-red focus:border-cnt-red'
+                      : 'border-cnt-border focus:border-cnt-red'
+                  }`}
+                />
+
+                <select
+                  value={editUserForm.rol}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({
+                      ...f,
+                      rol: e.target.value as 'admin' | 'cliente',
+                    }))
+                  }
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                >
+                  <option value="cliente">Cliente</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+
+              {editUserForm.confirmPassword &&
+                editUserForm.password !== editUserForm.confirmPassword && (
+                  <p className="text-xs text-red-300">
+                    La contraseña y la confirmación no coinciden.
+                  </p>
+                )}
+
+              <div className="border-t border-cnt-border pt-5">
+                <p className="text-white text-sm font-semibold mb-1">
+                  Datos del cliente
+                </p>
+                <p className="text-xs text-gray-500">
+                  Estos datos se muestran en listados, peticiones y contacto.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  value={editUserForm.nombre}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, nombre: e.target.value }))
+                  }
+                  placeholder="Nombre"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+
+                <input
+                  value={editUserForm.apellidos}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, apellidos: e.target.value }))
+                  }
+                  placeholder="Apellidos"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  value={editUserForm.telefono}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, telefono: e.target.value }))
+                  }
+                  placeholder="Teléfono"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+
+                <input
+                  value={editUserForm.empresa}
+                  onChange={(e) =>
+                    setEditUserForm((f) => ({ ...f, empresa: e.target.value }))
+                  }
+                  placeholder="Empresa"
+                  className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
+                />
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3 border-t border-cnt-border pt-5">
+                <button
+                  type="button"
+                  disabled={savingEditUser}
+                  onClick={cancelEditUser}
+                  className="cursor-pointer px-4 py-2 bg-cnt-surface border border-cnt-border text-gray-300 hover:text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingEditUser}
+                  className="cursor-pointer px-4 py-2 bg-cnt-red hover:bg-red-700 disabled:bg-red-900 text-white rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {savingEditUser ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
