@@ -909,26 +909,79 @@ export default function AdminPage() {
   }
 
   async function enviarAReporteros(id: number) {
-    const confirm = await Swal.fire({
-      title: '¿Enviar contenido a reporteros?',
-      text: 'Si aceptas, se enviará a la lista de tareas para reporteros.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, enviar',
-      cancelButtonText: 'No, cancelar',
-      confirmButtonColor: '#16a34a',
-      cancelButtonColor: '#374151',
-      background: '#111827',
-      color: '#ffffff',
-    });
+    const peticionActual =
+      reviewPeticion?.id === id
+        ? reviewPeticion
+        : peticiones.find((peticion: any) => Number(peticion.id) === Number(id));
 
-    if (!confirm.isConfirmed) return;
+    const rangoDias = getRangoDiasPeticion(peticionActual);
+
+    let modoEnvio: 'unica' | 'rango' = 'unica';
+
+    if (rangoDias && rangoDias > 1) {
+      const confirm = await Swal.fire({
+        title: '¿Deseas que sean varias noticias?',
+        html: `
+          <div style="text-align:left">
+            <p>Esta petición tiene un rango de días.</p>
+            <p style="margin-top:8px">
+              <b>Total:</b> ${rangoDias} día${rangoDias === 1 ? '' : 's'} aplicable${rangoDias === 1 ? '' : 's'}.
+            </p>
+            <p style="margin-top:8px">
+              Si eliges publicar varias noticias, se creará una noticia por cada día aplicable y se evitarán los días omitidos.
+            </p>
+          </div>
+        `,
+        icon: 'question',
+
+        showCloseButton: true, // Botón X
+        showDenyButton: true,
+        showCancelButton: true,
+
+        confirmButtonText: `Sí, publicar ${rangoDias} noticias`,
+        denyButtonText: 'No, enviar una sola noticia',
+        cancelButtonText: 'Cancelar',
+
+        confirmButtonColor: '#16a34a',
+        denyButtonColor: '#2563eb',
+        cancelButtonColor: '#374151',
+
+        background: '#111827',
+        color: '#ffffff',
+        width: 620,
+      });
+
+      if (confirm.isConfirmed) {
+        modoEnvio = 'rango';
+      } else if (confirm.isDenied) {
+        modoEnvio = 'unica';
+      } else {
+        return;
+      }
+    } else {
+      const confirm = await Swal.fire({
+        title: '¿Enviar contenido a reporteros?',
+        text: 'Si aceptas, se enviará a la lista de tareas para reporteros.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, enviar',
+        cancelButtonText: 'No, cancelar',
+        confirmButtonColor: '#16a34a',
+        cancelButtonColor: '#374151',
+        background: '#111827',
+        color: '#ffffff',
+      });
+
+      if (!confirm.isConfirmed) return;
+    }
 
     try {
       setSendingReporteros(true);
 
       const res = await fetch(apiPath(`/api/admin/peticiones/${id}/enviar-reporteros`), {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modoEnvio }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -946,9 +999,14 @@ export default function AdminPage() {
         return;
       }
 
+      const noticiasCount = Number(data.noticias_count ?? 1);
+
       await Swal.fire({
-        title: 'Tarea enviada',
-        text: 'El contenido fue enviado a reporteros correctamente.',
+        title: noticiasCount > 1 ? 'Noticias enviadas' : 'Tarea enviada',
+        text:
+          noticiasCount > 1
+            ? `Se crearon ${noticiasCount} noticias para reporteros correctamente.`
+            : 'El contenido fue enviado a reporteros correctamente.',
         icon: 'success',
         confirmButtonColor: '#dc2626',
         background: '#111827',

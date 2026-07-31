@@ -365,6 +365,7 @@ export async function POST(req: NextRequest) {
             catalogo_titulo,
             catalogo_descripcion,
             catalogo_categoria,
+            catalogo_precio,
             catalogo_imagen,
             catalogo_archivo,
             catalogo_snapshot,
@@ -470,7 +471,7 @@ export async function POST(req: NextRequest) {
         estatus,
         request_payload
       )
-      VALUES (?, ?, ?, ?, 'MXN', ?, ?, ?, ?, ?, ?, 'creado', ?)
+      VALUES (?, ?, ?, ?, 'MXN', ?, ?, ?, ?, ?, ?, CAST(? AS JSON), 'creado', CAST(? AS JSON))
       `,
       [
         clienteId,
@@ -481,6 +482,7 @@ export async function POST(req: NextRequest) {
         catalogo.titulo,
         catalogo.descripcion ?? null,
         catalogo.categoria,
+        catalogo.precio,
         catalogo.imagen ?? null,
         catalogo.archivo ?? null,
         JSON.stringify(catalogoSnapshot),

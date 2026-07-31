@@ -21,6 +21,7 @@ type PeticionRow = RowDataPacket & {
     fecha_deseada: unknown;
     fecha_fin: unknown;
     rango_dias: number | null;
+    fechas_omitidas: unknown;
     usa_hora_cita: number | boolean;
     hora_cita: string | null;
     estatus: string;
@@ -105,8 +106,158 @@ function toTipoDeNota(categoria: unknown): 'Noticia' | 'Entrevista' | 'Reportaje
     return 'Noticia';
 }
 
+type ModoEnvioReporteros = 'unica' | 'rango';
+
+function parseRequestBody(value: unknown): { modoEnvio: ModoEnvioReporteros } {
+    if (!value || typeof value !== 'object') {
+        return { modoEnvio: 'unica' };
+    }
+
+    const body = value as Record<string, unknown>;
+
+    return {
+        modoEnvio: body.modoEnvio === 'rango' ? 'rango' : 'unica',
+    };
+}
+
+function parseDateOnlyLocal(value: unknown): Date | null {
+    const dateText = formatDateValue(value);
+
+    if (!dateText || !/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+        return null;
+    }
+
+    const [year, month, day] = dateText.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+    if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+    ) {
+        return null;
+    }
+
+    return date;
+}
+
+function dateToSqlDate(date: Date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function addDays(date: Date, days: number) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+}
+
+function parseFechasOmitidas(value: unknown): Set<string> {
+    let parsed = value;
+
+    if (Buffer.isBuffer(parsed)) {
+        parsed = parsed.toString('utf8');
+    }
+
+    if (typeof parsed === 'string') {
+        try {
+            parsed = JSON.parse(parsed);
+        } catch {
+            return new Set();
+        }
+    }
+
+    if (!Array.isArray(parsed)) {
+        return new Set();
+    }
+
+    const fechas = parsed
+        .map((item) => {
+            if (typeof item === 'string') return item;
+
+            if (item && typeof item === 'object') {
+                return String((item as Record<string, unknown>).fecha ?? '');
+            }
+
+            return '';
+        })
+        .map((item) => item.trim())
+        .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item));
+
+    return new Set(fechas);
+}
+
+function getRangoDiasAplicables(peticion: PeticionRow) {
+    const rangoDias = Number(peticion.rango_dias ?? 0);
+
+    return Number.isInteger(rangoDias) && rangoDias > 0 ? rangoDias : 1;
+}
+
+function buildFechasPublicacion(
+    peticion: PeticionRow,
+    modoEnvio: ModoEnvioReporteros
+) {
+    const fechaInicial = parseDateOnlyLocal(peticion.fecha_deseada);
+
+    if (!fechaInicial) {
+        throw new Error('No se pudo calcular la fecha inicial de la petición.');
+    }
+
+    const rangoDias = getRangoDiasAplicables(peticion);
+
+    if (modoEnvio !== 'rango' || rangoDias <= 1) {
+        return [dateToSqlDate(fechaInicial)];
+    }
+
+    const fechasOmitidas = parseFechasOmitidas(peticion.fechas_omitidas);
+    const fechas: string[] = [];
+
+    let cursor = new Date(fechaInicial);
+    let safety = 0;
+
+    while (fechas.length < rangoDias && safety < 730) {
+        const fechaSql = dateToSqlDate(cursor);
+
+        if (!fechasOmitidas.has(fechaSql)) {
+            fechas.push(fechaSql);
+        }
+
+        cursor = addDays(cursor, 1);
+        safety += 1;
+    }
+
+    if (fechas.length < rangoDias) {
+        throw new Error(
+            `No se pudieron calcular ${rangoDias} fechas aplicables para publicar noticias.`
+        );
+    }
+
+    return fechas;
+}
+
+function buildTituloNoticia(
+    tituloBase: string,
+    index: number,
+    total: number,
+    modoEnvio: ModoEnvioReporteros
+) {
+    const cleanTitle = tituloBase.trim() || 'Noticia';
+
+    if (modoEnvio !== 'rango' || total <= 1) {
+        return cleanTitle;
+    }
+
+    const dia = index + 1;
+    const finalText = dia === total ? ' Final' : '';
+
+    return `${cleanTitle} (Día ${dia}${finalText})`;
+}
+
 export async function POST(
-    _req: NextRequest,
+    req: NextRequest,
     ctx: { params: Promise<{ id: string }> }
 ) {
     const conn = await pool.getConnection();
@@ -122,6 +273,9 @@ export async function POST(
         if (session.user.rol !== 'admin') {
             return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
         }
+
+        const body = await req.json().catch(() => ({}));
+        const { modoEnvio } = parseRequestBody(body);
 
         const { id } = await ctx.params;
         const peticionId = Number(id);
@@ -186,37 +340,28 @@ export async function POST(
             );
         }
 
-        const rangoDias = Number(peticion.rango_dias ?? 0);
-
-        if (Number.isInteger(rangoDias) && rangoDias > 1) {
-            await conn.rollback();
-            return NextResponse.json(
-                { error: 'No se puede enviar a reporteros una petición con rango mayor a un día.' },
-                { status: 400 }
-            );
-        }
-
         const existingRows = await executeRows<RowDataPacket[]>(
             conn,
             `
             SELECT id
             FROM noticias
             WHERE peticion_id = ?
-            LIMIT 1
+            ORDER BY id ASC
             `,
             [peticionId]
         );
 
         if (existingRows.length) {
-            const existingNoticiaId = Number(existingRows[0].id);
+            const existingNoticiaIds = existingRows.map((row) => Number(row.id));
+            const existingNoticiaId = existingNoticiaIds[0];
 
             await executeResult(
                 conn,
                 `
                 UPDATE peticiones_clientes
                 SET
-                noticia_id = ?,
-                enviada_reporteros_at = NOW()
+                    noticia_id = ?,
+                    enviada_reporteros_at = NOW()
                 WHERE id = ?
                 `,
                 [existingNoticiaId, peticionId]
@@ -229,7 +374,7 @@ export async function POST(
                 (peticion_id, accion, campo, valor_anterior, valor_nuevo, admin_user_id)
                 VALUES (?, 'enviar_reporteros', 'noticia_id', NULL, ?, ?)
                 `,
-                [peticionId, String(existingNoticiaId), session.user.id]
+                [peticionId, existingNoticiaIds.join(','), session.user.id]
             );
 
             await conn.commit();
@@ -240,7 +385,7 @@ export async function POST(
                     Number(session.user.id),
                     'enviar_reporteros',
                     'peticiones',
-                    `Petición ${peticionId} vinculada a noticia existente ${existingNoticiaId}`
+                    `Petición ${peticionId} vinculada a noticias existentes ${existingNoticiaIds.join(',')}`
                 );
             } catch (logError) {
                 console.error('[logAction enviar_reporteros existing]', logError);
@@ -250,50 +395,70 @@ export async function POST(
                 ok: true,
                 alreadyExisted: true,
                 noticia_id: existingNoticiaId,
+                noticia_ids: existingNoticiaIds,
+                noticias_count: existingNoticiaIds.length,
             });
         }
 
-        const fechaCita = combineDateAndTime(peticion.fecha_deseada, peticion.hora_cita);
+        const fechasPublicacion = buildFechasPublicacion(peticion, modoEnvio);
+        const noticiaIds: number[] = [];
 
-        if (!fechaCita) {
-            await conn.rollback();
-            return NextResponse.json(
-                { error: 'No se pudo calcular fecha_cita para noticias.' },
-                { status: 400 }
+        for (let index = 0; index < fechasPublicacion.length; index += 1) {
+            const fechaPublicacion = fechasPublicacion[index];
+
+            const fechaCita = combineDateAndTime(fechaPublicacion, peticion.hora_cita);
+
+            if (!fechaCita) {
+                await conn.rollback();
+                return NextResponse.json(
+                    { error: 'No se pudo calcular fecha_cita para noticias.' },
+                    { status: 400 }
+                );
+            }
+
+            const tituloNoticia = buildTituloNoticia(
+                String(peticion.motivo ?? '').trim(),
+                index,
+                fechasPublicacion.length,
+                modoEnvio
             );
+
+            const insert = await executeResult(
+                conn,
+                `
+                INSERT INTO noticias
+                (
+                    noticia,
+                    tipo_de_nota,
+                    descripcion,
+                    peticion_id,
+                    cliente_cliente_id,
+                    usuario_cliente_id,
+                    domicilio,
+                    fecha_pago,
+                    fecha_cita,
+                    pendiente,
+                    ultima_mod
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                `,
+                [
+                    tituloNoticia,
+                    toTipoDeNota(categoriaCatalogo),
+                    String(peticion.descripcion ?? '').trim(),
+                    peticionId,
+                    peticion.cliente_id,
+                    peticion.usuario_cliente_id ?? null,
+                    peticion.domicilio_texto ?? null,
+                    peticion.fecha_pago ?? null,
+                    fechaCita,
+                ]
+            );
+
+            noticiaIds.push(insert.insertId);
         }
 
-        const insert = await executeResult(
-            conn,
-            `
-            INSERT INTO noticias
-            (
-                noticia,
-                tipo_de_nota,
-                descripcion,
-                peticion_id,
-                cliente_cliente_id,
-                usuario_cliente_id,
-                domicilio,
-                fecha_pago,
-                fecha_cita,
-                pendiente,
-                ultima_mod
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
-            `,
-            [
-                String(peticion.motivo ?? '').trim(),
-                toTipoDeNota(categoriaCatalogo),
-                String(peticion.descripcion ?? '').trim(),
-                peticionId,
-                peticion.cliente_id,
-                peticion.usuario_cliente_id ?? null,
-                peticion.domicilio_texto ?? null,
-                peticion.fecha_pago ?? null,
-                fechaCita,
-            ]
-        );
+        const firstNoticiaId = noticiaIds[0];
 
         await executeResult(
             conn,
@@ -304,7 +469,7 @@ export async function POST(
                 enviada_reporteros_at = NOW()
             WHERE id = ?
             `,
-            [insert.insertId, peticionId]
+            [firstNoticiaId, peticionId]
         );
 
         await executeResult(
@@ -314,7 +479,7 @@ export async function POST(
             (peticion_id, accion, campo, valor_anterior, valor_nuevo, admin_user_id)
             VALUES (?, 'enviar_reporteros', 'noticia_id', NULL, ?, ?)
             `,
-            [peticionId, String(insert.insertId), session.user.id]
+            [peticionId, noticiaIds.join(','), session.user.id]
         );
 
         await conn.commit();
@@ -325,7 +490,7 @@ export async function POST(
                 Number(session.user.id),
                 'enviar_reporteros',
                 'peticiones',
-                `Petición ${peticionId} enviada a reporteros como noticia ${insert.insertId}`
+                `Petición ${peticionId} enviada a reporteros como ${noticiaIds.length} noticia(s): ${noticiaIds.join(',')}`
             );
         } catch (logError) {
             console.error('[logAction enviar_reporteros]', logError);
@@ -333,7 +498,10 @@ export async function POST(
 
         return NextResponse.json({
             ok: true,
-            noticia_id: insert.insertId,
+            noticia_id: firstNoticiaId,
+            noticia_ids: noticiaIds,
+            noticias_count: noticiaIds.length,
+            modoEnvio,
         });
     } catch (error: any) {
         if (!committed) {
