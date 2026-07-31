@@ -191,6 +191,7 @@ export async function GET(req: NextRequest) {
       )
     ),
 
+    fechas_bloqueadas_admin: fechasBloqueadas,
     fechas_bloqueadas: fechasBloqueadas,
 
     peticion_id: row.peticion_id,

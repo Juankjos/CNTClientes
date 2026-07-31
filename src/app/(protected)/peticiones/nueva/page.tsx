@@ -137,7 +137,9 @@ export default function NuevaPeticionPage() {
         setBloqueaFechasPersonalizadas(toBooleanDb(pagoData.bloquea_fechas_personalizadas, false));
         setFechasBloqueadas(
           parseFechasBloqueadas(
-            pagoData.fechas_bloqueadas ?? pagoData.fechas_bloqueadas_json
+            pagoData.fechas_bloqueadas_admin ??
+              pagoData.fechas_bloqueadas ??
+              pagoData.fechas_bloqueadas_json
           )
         );
         setUsaHoraCita(toBooleanDb(pagoData.usa_hora_cita));
@@ -444,7 +446,7 @@ export default function NuevaPeticionPage() {
     return motivos;
   }
 
-  function isFechaBloqueada(date: Date) {
+  function isFechaBloqueadaPorAdmin(date: Date) {
     return getMotivosSalto(date).length > 0;
   }
 
@@ -456,7 +458,7 @@ export default function NuevaPeticionPage() {
     let guard = 0;
 
     while (counted < totalDias) {
-      if (!isFechaBloqueada(current)) {
+      if (!isFechaBloqueadaPorAdmin(current)) {
         counted += 1;
 
         if (counted === totalDias) {
@@ -598,7 +600,7 @@ export default function NuevaPeticionPage() {
         return;
       }
 
-      if (isFechaBloqueada(selected)) {
+      if (isFechaBloqueadaPorAdmin(selected)) {
         await Swal.fire(
           'Fecha no disponible',
           'La fecha inicial seleccionada no aplica.',
@@ -615,13 +617,27 @@ export default function NuevaPeticionPage() {
         );
         return;
       }
-    } else if (usaHoraCita && fechaDeseada.getTime() < Date.now()) {
-      await Swal.fire(
-        'Fecha inválida',
-        'Debes elegir una fecha y hora posterior al momento actual.',
-        'warning'
-      );
-      return;
+    } else {
+      const selected = new Date(fechaDeseada);
+      selected.setHours(0, 0, 0, 0);
+
+      if (isFechaBloqueadaPorAdmin(selected)) {
+        await Swal.fire(
+          'Fecha no disponible',
+          'La fecha seleccionada fue bloqueada por el administrador.',
+          'warning'
+        );
+        return;
+      }
+
+      if (usaHoraCita && fechaDeseada.getTime() < Date.now()) {
+        await Swal.fire(
+          'Fecha inválida',
+          'Debes elegir una fecha y hora posterior al momento actual.',
+          'warning'
+        );
+        return;
+      }
     }
 
     if (uploadingFiles) {
@@ -936,11 +952,7 @@ export default function NuevaPeticionPage() {
 
               setFechaDeseada(next);
             }}
-            filterDate={
-              tieneRangoFechas
-                ? (date: Date) => !isFechaBloqueada(date)
-                : undefined
-            }
+            filterDate={(date: Date) => !isFechaBloqueadaPorAdmin(date)}
             showTimeSelect={usaHoraCita}
             locale="es"
             minDate={new Date()}
