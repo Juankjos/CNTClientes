@@ -9,6 +9,16 @@ export const runtime = 'nodejs';
 
 const NOTICIAS_CATEGORIAS = new Set(['noticia', 'entrevista', 'reportaje']);
 
+const FESTIVOS_MX_FIJOS = new Set([
+    '01-01',
+    '02-02',
+    '03-16',
+    '05-01',
+    '09-16',
+    '11-20',
+    '12-25',
+]);
+
 type PeticionRow = RowDataPacket & {
     id: number;
     cliente_id: number;
@@ -21,6 +31,7 @@ type PeticionRow = RowDataPacket & {
     fecha_deseada: unknown;
     fecha_fin: unknown;
     rango_dias: number | null;
+    catalogo_snapshot: unknown;
     fechas_omitidas: unknown;
     usa_hora_cita: number | boolean;
     hora_cita: string | null;
@@ -30,6 +41,12 @@ type PeticionRow = RowDataPacket & {
     usuario_cliente_id: number | null;
     fecha_pago: unknown;
     catalogo_categoria: string;
+    live_rango_dias: number | string | null;
+    live_bloquea_sabado: number | boolean | null;
+    live_bloquea_domingo: number | boolean | null;
+    live_bloquea_dias_festivos: number | boolean | null;
+    live_bloquea_fechas_personalizadas: number | boolean | null;
+    live_fechas_bloqueadas_json: unknown;
 };
 
 type DbConnection = Awaited<ReturnType<typeof pool.getConnection>>;
@@ -190,8 +207,139 @@ function parseFechasOmitidas(value: unknown): Set<string> {
     return new Set(fechas);
 }
 
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
+    let parsed = value;
+
+    if (Buffer.isBuffer(parsed)) {
+        parsed = parsed.toString('utf8');
+    }
+
+    if (typeof parsed === 'string') {
+        try {
+            parsed = JSON.parse(parsed);
+        } catch {
+            return null;
+        }
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return null;
+    }
+
+    return parsed as Record<string, unknown>;
+}
+
+function toBool(value: unknown, fallback = false) {
+    if (value === undefined || value === null) return fallback;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+
+    const text = String(value).trim().toLowerCase();
+
+    return text === '1' || text === 'true' || text === 'sí' || text === 'si';
+}
+
+function parseJsonDates(value: unknown): string[] {
+    let parsed = value;
+
+    if (Buffer.isBuffer(parsed)) {
+        parsed = parsed.toString('utf8');
+    }
+
+    if (typeof parsed === 'string') {
+        try {
+            parsed = JSON.parse(parsed);
+        } catch {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(parsed)) {
+        return [];
+    }
+
+    return Array.from(
+        new Set(
+            parsed
+                .map((item) => String(item).trim())
+                .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+        )
+    ).sort();
+}
+
+function getSnapshotValue(
+    snapshot: Record<string, unknown> | null,
+    key: string,
+    fallback: unknown = null
+) {
+    if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, key)) {
+        return snapshot[key];
+    }
+
+    return fallback;
+}
+
+function getMonthDayFromSqlDate(dateOnly: string) {
+    return dateOnly.slice(5, 10);
+}
+
+function shouldSkipDateByAdminRules(peticion: PeticionRow, fechaSql: string) {
+    const snapshot = parseJsonObject(peticion.catalogo_snapshot);
+
+    const bloqueaSabado = toBool(
+        getSnapshotValue(snapshot, 'bloquea_sabado', peticion.live_bloquea_sabado)
+    );
+
+    const bloqueaDomingo = toBool(
+        getSnapshotValue(snapshot, 'bloquea_domingo', peticion.live_bloquea_domingo)
+    );
+
+    const bloqueaDiasFestivos = toBool(
+        getSnapshotValue(
+            snapshot,
+            'bloquea_dias_festivos',
+            peticion.live_bloquea_dias_festivos
+        )
+    );
+
+    const bloqueaFechasPersonalizadas = toBool(
+        getSnapshotValue(
+            snapshot,
+            'bloquea_fechas_personalizadas',
+            peticion.live_bloquea_fechas_personalizadas
+        )
+    );
+
+    const fechasBloqueadasRaw =
+        getSnapshotValue(snapshot, 'fechas_bloqueadas_json', undefined) ??
+        getSnapshotValue(snapshot, 'fechas_bloqueadas', undefined) ??
+        peticion.live_fechas_bloqueadas_json;
+
+    const fechasBloqueadas = bloqueaFechasPersonalizadas
+        ? new Set(parseJsonDates(fechasBloqueadasRaw))
+        : new Set<string>();
+
+    const fecha = parseDateOnlyLocal(fechaSql);
+
+    if (!fecha) return true;
+
+    const day = fecha.getDay();
+
+    const isSaturday = day === 6;
+    const isSunday = day === 0;
+    const isHoliday = FESTIVOS_MX_FIJOS.has(getMonthDayFromSqlDate(fechaSql));
+    const isCustomBlocked = fechasBloqueadas.has(fechaSql);
+
+    if (bloqueaSabado && isSaturday) return true;
+    if (bloqueaDomingo && isSunday) return true;
+    if (bloqueaDiasFestivos && isHoliday) return true;
+    if (bloqueaFechasPersonalizadas && isCustomBlocked) return true;
+
+    return false;
+}
+
 function getRangoDiasAplicables(peticion: PeticionRow) {
-    const rangoDias = Number(peticion.rango_dias ?? 0);
+    const rangoDias = Number(peticion.rango_dias ?? peticion.live_rango_dias ?? 0);
 
     return Number.isInteger(rangoDias) && rangoDias > 0 ? rangoDias : 1;
 }
@@ -212,7 +360,6 @@ function buildFechasPublicacion(
         return [dateToSqlDate(fechaInicial)];
     }
 
-    const fechasOmitidas = parseFechasOmitidas(peticion.fechas_omitidas);
     const fechas: string[] = [];
 
     let cursor = new Date(fechaInicial);
@@ -221,7 +368,7 @@ function buildFechasPublicacion(
     while (fechas.length < rangoDias && safety < 730) {
         const fechaSql = dateToSqlDate(cursor);
 
-        if (!fechasOmitidas.has(fechaSql)) {
+        if (!shouldSkipDateByAdminRules(peticion, fechaSql)) {
             fechas.push(fechaSql);
         }
 
@@ -293,7 +440,13 @@ export async function POST(
                 p.*,
                 cl.usuario_id AS usuario_cliente_id,
                 pc.created_at AS fecha_pago,
-                c.categoria AS catalogo_categoria
+                c.categoria AS catalogo_categoria,
+                c.rango_dias AS live_rango_dias,
+                c.bloquea_sabado AS live_bloquea_sabado,
+                c.bloquea_domingo AS live_bloquea_domingo,
+                c.bloquea_dias_festivos AS live_bloquea_dias_festivos,
+                c.bloquea_fechas_personalizadas AS live_bloquea_fechas_personalizadas,
+                c.fechas_bloqueadas_json AS live_fechas_bloqueadas_json
             FROM peticiones_clientes p
             INNER JOIN clientes_clientes cl ON cl.id = p.cliente_id
             LEFT JOIN pagos_clientes pc ON pc.id = p.pago_id
