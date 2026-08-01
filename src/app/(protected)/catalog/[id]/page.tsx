@@ -99,6 +99,33 @@ export default function CatalogDetailPage() {
     return `${dia} de ${mesCapitalizado} del ${anio}`;
   }
 
+  function dateOnlyToLocalDate(value: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    const isValidDate =
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day;
+
+    return isValidDate ? date : null;
+  }
+
+  function isFechaHoyOFutura(value: string) {
+    const date = dateOnlyToLocalDate(value);
+
+    if (!date) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    date.setHours(0, 0, 0, 0);
+
+    return date.getTime() >= today.getTime();
+  }
+
   function formatDiasBloqueados({
     bloqueaSabado,
     bloqueaDomingo,
@@ -293,6 +320,7 @@ export default function CatalogDetailPage() {
   const bloqueaDiasFestivos = toBooleanDb(item.bloquea_dias_festivos);
   const bloqueaFechasPersonalizadas = toBooleanDb(item.bloquea_fechas_personalizadas);
   const fechasBloqueadas = parseFechasBloqueadas(item.fechas_bloqueadas_json);
+  const fechasBloqueadasVigentes = fechasBloqueadas.filter(isFechaHoyOFutura);
 
   const diasFinSemanaBloqueados = formatDiasBloqueados({
     bloqueaSabado,
@@ -303,7 +331,7 @@ export default function CatalogDetailPage() {
     bloqueaSabado ||
     bloqueaDomingo ||
     bloqueaDiasFestivos ||
-    (bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0);
+    (bloqueaFechasPersonalizadas && fechasBloqueadasVigentes.length > 0);
 
   const itemTieneRango =
     usaRangoFechas &&
@@ -413,14 +441,14 @@ export default function CatalogDetailPage() {
                     </div>
                   )}
 
-                  {/* {bloqueaFechasPersonalizadas && fechasBloqueadas.length > 0 && (
+                  {bloqueaFechasPersonalizadas && fechasBloqueadasVigentes.length > 0 && (
                     <div>
                       <p className="text-white font-semibold">
-                        Actualmente se omiten las siguientes fechas:
+                        Próximas fechas no aplicables:
                       </p>
 
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {fechasBloqueadas.map((fecha) => (
+                        {fechasBloqueadasVigentes.map((fecha) => (
                           <span
                             key={fecha}
                             className="rounded-full border border-yellow-800/70 bg-cnt-dark px-3 py-1 text-xs text-yellow-200"
@@ -430,7 +458,7 @@ export default function CatalogDetailPage() {
                         ))}
                       </div>
                     </div>
-                  )} */}
+                  )}
                 </div>
 
                 <p className="text-xs  text-yellow-300 mt-3">
