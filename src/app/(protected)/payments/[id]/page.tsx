@@ -14,12 +14,12 @@ const ESTATUS_STYLE: Record<string, string> = {
   reembolsado: 'bg-blue-900/50 text-blue-300 border-blue-800',
 };
 
-const ESTATUS_ICON: Record<string, string> = {
-  pendiente:   '⏳',
-  pagado:      '✅',
-  cancelado:   '❌',
-  reembolsado: '↩️',
-};
+// const ESTATUS_ICON: Record<string, string> = {
+//   pendiente:   '⏳',
+//   pagado:      '✅',
+//   cancelado:   '❌',
+//   reembolsado: '↩️',
+// };
 
 export default function PaymentDetailPage() {
   const router = useRouter();
@@ -98,7 +98,7 @@ export default function PaymentDetailPage() {
             <p className="font-mono text-gray-500 text-sm">{pago.referencia}</p>
           </div>
           <span className={`text-gray-500 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${ESTATUS_STYLE[pago.estatus] ?? 'bg-gray-800 text-gray-400'}`}>
-            {ESTATUS_ICON[pago.estatus]} {pago.estatus.charAt(0).toUpperCase() + pago.estatus.slice(1)}
+            {pago.estatus.charAt(0).toUpperCase() + pago.estatus.slice(1)}
           </span>
         </div>
 

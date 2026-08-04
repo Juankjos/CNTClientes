@@ -85,9 +85,6 @@ export default function MisFormulariosPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-8">
-        <p className="text-white font-mono text-xs tracking-widest uppercase mb-1">
-          Cliente
-        </p>
         <h1 className="font-display text-3xl text-white">Mis Formularios</h1>
       </div>
 
@@ -121,6 +118,19 @@ export default function MisFormulariosPage() {
         {filteredItems.map((item) => {
           const enabled = item.estatus === 'pagado';
           const hasPeticion = item.tiene_peticion;
+          const peticionPendiente = hasPeticion && item.peticion_estatus === 'pendiente';
+
+          const buttonText = hasPeticion
+            ? peticionPendiente
+              ? 'Editar o Ver Formulario'
+              : 'Ver Formulario'
+            : 'Rellenar Formulario';
+
+          const buttonClassName = hasPeticion
+            ? peticionPendiente
+              ? 'bg-yellow-900/50 border-yellow-700 text-yellow-200 hover:bg-yellow-800/60 hover:text-white disabled:bg-gray-700 disabled:border-gray-700 disabled:text-gray-300'
+              : 'bg-green-950/60 border-green-800 text-green-300 hover:bg-green-900/60 hover:text-white disabled:bg-gray-700 disabled:border-gray-700 disabled:text-gray-300'
+            : 'bg-blue-950 border-blue-800 text-blue-200 hover:bg-blue-900 hover:text-white disabled:bg-gray-700 disabled:border-gray-700 disabled:text-gray-300';
 
           return (
             <div
@@ -157,6 +167,11 @@ export default function MisFormulariosPage() {
                       <p className="text-xs text-green-400 mt-2">
                         Ya enviaste este formulario.
                       </p>
+                      {item.peticion_estatus === 'pendiente' && (
+                        <p className="text-xs text-blue-300 mt-1">
+                          Esta petición aún puede editarse.
+                        </p>
+                      )}
                     </>
                   )}
                 </div>
@@ -178,13 +193,9 @@ export default function MisFormulariosPage() {
                       `/peticiones/nueva?pago_id=${item.pago_id}&catalogo_id=${item.catalogo_id}`
                     );
                   }}
-                  className={`cursor-pointer disabled:cursor-not-allowed px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${
-                    hasPeticion
-                      ? 'bg-cnt-red border-cnt-border text-white disabled:bg-gray-700'
-                      : 'bg-blue-950 border-blue-800 text-white hover:bg-blue-900 disabled:bg-gray-700 disabled:border-gray-700 disabled:text-gray-300'
-                  }`}
+                  className={`cursor-pointer disabled:cursor-not-allowed px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${buttonClassName}`}
                 >
-                  {hasPeticion ? 'Ver Formulario' : 'Rellenar Formulario'}
+                  {buttonText}
                 </button>
               </div>
 
