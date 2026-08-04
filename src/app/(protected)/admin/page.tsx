@@ -196,6 +196,15 @@ function getFechasOmitidasPeticion(peticion: any): Array<{ fecha: string; motivo
   });
 }
 
+function getDomicilioResumen(value: unknown) {
+  const cleanValue = String(value ?? '').trim();
+
+  if (!cleanValue) return 'Domicilio sin información';
+  if (cleanValue.length <= 120) return cleanValue;
+
+  return `${cleanValue.slice(0, 120)}...`;
+}
+
 type ToggleSwitchProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -687,43 +696,6 @@ export default function AdminPage() {
     return String(value).padStart(2, '0');
   }
 
-  function toSqlDateTime(date: Date) {
-    const yyyy = date.getFullYear();
-    const mm = pad(date.getMonth() + 1);
-    const dd = pad(date.getDate());
-    const hh = pad(date.getHours());
-    const mi = pad(date.getMinutes());
-
-    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:00`;
-  }
-
-  function parseFechaDeseada(value: unknown) {
-    const raw = String(value ?? '').trim();
-
-    if (!raw) return null;
-
-    const match = raw.match(
-      /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/
-    );
-
-    if (match) {
-      const [, yyyy, mm, dd, hh = '0', mi = '0', ss = '0'] = match;
-
-      return new Date(
-        Number(yyyy),
-        Number(mm) - 1,
-        Number(dd),
-        Number(hh),
-        Number(mi),
-        Number(ss)
-      );
-    }
-
-    const date = new Date(raw);
-
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
   function formatFechaAmPm(value: Date | null) {
     if (!value) return '';
 
@@ -1036,6 +1008,12 @@ export default function AdminPage() {
 
     if (!reviewForm.fecha_deseada) {
       setPeticionMsg('Debes elegir fecha y hora deseada');
+      setReviewSaving(false);
+      return;
+    }
+
+    if (reviewForm.usar_domicilio && !reviewForm.domicilio_slot) {
+      setPeticionMsg('Debes seleccionar un domicilio.');
       setReviewSaving(false);
       return;
     }
@@ -2418,32 +2396,74 @@ export default function AdminPage() {
                         </div>
 
                         {reviewForm.usar_domicilio && (
-                          <>
-                            <select
-                              value={reviewForm.domicilio_slot}
-                              onChange={(e) =>
-                                setReviewForm((f) => ({ ...f, domicilio_slot: e.target.value }))
-                              }
-                              className="w-full bg-cnt-surface border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
-                            >
-                              <option value="">Selecciona un domicilio</option>
-                              {reviewDomicilios.map((dom: any) => (
-                                <option key={dom.slot} value={dom.slot}>
-                                  {dom.label}
-                                </option>
-                              ))}
-                            </select>
+                          <div className="space-y-3">
+                            {reviewDomicilios.length === 0 ? (
+                              <div className="rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-300">
+                                Este cliente no tiene domicilios registrados disponibles.
+                              </div>
+                            ) : (
+                              reviewDomicilios.map((domicilio: any) => {
+                                const selected = reviewForm.domicilio_slot === String(domicilio.slot);
+
+                                return (
+                                  <button
+                                    key={domicilio.slot}
+                                    type="button"
+                                    onClick={() =>
+                                      setReviewForm((form) => ({
+                                        ...form,
+                                        domicilio_slot: String(domicilio.slot),
+                                      }))
+                                    }
+                                    className={`w-full cursor-pointer rounded-xl border px-4 py-3 text-left transition-all ${
+                                      selected
+                                        ? 'border-cnt-red bg-red-950/30 ring-1 ring-cnt-red/60'
+                                        : 'border-cnt-border bg-cnt-surface hover:border-gray-500'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-white">
+                                          {domicilio.label ?? `Domicilio ${domicilio.slot}`}
+                                        </p>
+
+                                        <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                                          {getDomicilioResumen(domicilio.value)}
+                                        </p>
+                                      </div>
+
+                                      <span
+                                        className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${
+                                          selected
+                                            ? 'border-cnt-red bg-cnt-red text-white'
+                                            : 'border-gray-600 text-transparent'
+                                        }`}
+                                      >
+                                        ✓
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
 
                             {reviewForm.domicilio_slot && (
-                              <p className="mt-3 text-sm text-gray-400">
-                                {
-                                  reviewDomicilios.find(
-                                    (d: any) => String(d.slot) === reviewForm.domicilio_slot
-                                  )?.value
-                                }
-                              </p>
+                              <div className="rounded-lg border border-cnt-border bg-black/20 px-4 py-3">
+                                <p className="text-xs uppercase tracking-widest text-gray-500">
+                                  Domicilio seleccionado
+                                </p>
+
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-white">
+                                  {
+                                    reviewDomicilios.find(
+                                      (domicilio: any) =>
+                                        String(domicilio.slot) === reviewForm.domicilio_slot
+                                    )?.value ?? 'No disponible'
+                                  }
+                                </p>
+                              </div>
                             )}
-                          </>
+                          </div>
                         )}
                       </div>
 
@@ -2559,12 +2579,25 @@ export default function AdminPage() {
                       </div>
 
                       <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">Ubicación para la actividad</p>
-                        <p className="text-white">
-                          {reviewPeticion.usar_domicilio
-                            ? reviewPeticion.domicilio_texto
-                            : 'Sin ubicación'}
+                        <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                          Ubicación para la actividad
                         </p>
+
+                        {reviewPeticion.usar_domicilio && reviewPeticion.domicilio_texto ? (
+                          <div className="rounded-xl border border-cnt-border bg-cnt-surface px-4 py-3">
+                            <p className="text-xs uppercase tracking-widest text-gray-500">
+                              Domicilio seleccionado
+                            </p>
+
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-white">
+                              {reviewPeticion.domicilio_texto}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-cnt-border bg-cnt-surface/40 px-4 py-3 text-sm text-gray-500">
+                            Sin ubicación seleccionada.
+                          </div>
+                        )}
                       </div>
 
                       <div className="rounded-xl border border-cnt-border bg-cnt-surface p-4">

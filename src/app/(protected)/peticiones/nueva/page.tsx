@@ -393,16 +393,29 @@ export default function NuevaPeticionPage() {
   }
 
   const domicilios = useMemo<AddressOption[]>(() => {
-    if (!profile) return [];
+  if (!profile) return [];
 
-    return [1, 2, 3]
-      .map((slot) => ({
+  return [1, 2, 3]
+    .map((slot) => {
+      const value = profile[`domicilio_${slot}`];
+
+      return {
         slot: slot as 1 | 2 | 3,
         label: `Domicilio ${slot}`,
-        value: profile[`domicilio_${slot}`],
-      }))
-      .filter((d) => Boolean(d.value));
+        value: typeof value === 'string' ? value.trim() : String(value ?? '').trim(),
+      };
+    })
+    .filter((domicilio) => domicilio.value.length > 0);
   }, [profile]);
+
+  function getDomicilioResumen(value: string) {
+    const cleanValue = String(value ?? '').trim();
+
+    if (!cleanValue) return 'Domicilio sin información';
+    if (cleanValue.length <= 120) return cleanValue;
+
+    return `${cleanValue.slice(0, 120)}...`;
+  }
 
   const fechasBloqueadasSet = useMemo(() => {
     return new Set(
@@ -893,18 +906,68 @@ export default function NuevaPeticionPage() {
           </div>
 
           {usarDomicilio && (
-            <select
-              value={domicilioSlot}
-              onChange={(e) => setDomicilioSlot(e.target.value)}
-              className="w-full bg-cnt-dark border border-cnt-border text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cnt-red"
-            >
-              <option value="">Selecciona un domicilio</option>
-              {domicilios.map((dom) => (
-                <option key={dom.slot} value={dom.slot}>
-                  {dom.label}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-3">
+              {domicilios.length === 0 ? (
+                <div className="rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-300">
+                  No tienes domicilios registrados disponibles.
+                </div>
+              ) : (
+                domicilios.map((domicilio) => {
+                  const selected = domicilioSlot === String(domicilio.slot);
+
+                  return (
+                    <button
+                      key={domicilio.slot}
+                      type="button"
+                      onClick={() => setDomicilioSlot(String(domicilio.slot))}
+                      className={`w-full cursor-pointer rounded-xl border px-4 py-3 text-left transition-all ${
+                        selected
+                          ? 'border-cnt-red bg-red-950/30 ring-1 ring-cnt-red/60'
+                          : 'border-cnt-border bg-cnt-dark hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white">
+                            {domicilio.label}
+                          </p>
+
+                          <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                            {getDomicilioResumen(domicilio.value)}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${
+                            selected
+                              ? 'border-cnt-red bg-cnt-red text-white'
+                              : 'border-gray-600 text-transparent'
+                          }`}
+                        >
+                          ✓
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+
+              {domicilioSlot && (
+                <div className="rounded-lg border border-cnt-border bg-black/20 px-4 py-3">
+                  <p className="text-xs uppercase tracking-widest text-gray-500">
+                    Domicilio seleccionado
+                  </p>
+
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-white">
+                    {
+                      domicilios.find(
+                        (domicilio) => String(domicilio.slot) === domicilioSlot
+                      )?.value ?? 'No disponible'
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {usarDomicilio && domicilioSlot && (
