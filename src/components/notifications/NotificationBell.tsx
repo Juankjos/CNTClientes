@@ -20,6 +20,7 @@ type NotificationItem = {
 
 const TYPE_STYLE: Record<string, string> = {
     nueva_peticion: 'bg-blue-950 text-blue-300 border-blue-800',
+    peticion_actualizada: 'bg-blue-950 text-blue-300 border-blue-800',
     comentario_admin: 'bg-yellow-950 text-yellow-300 border-yellow-800',
     cambio_estatus: 'bg-purple-950 text-purple-300 border-purple-800',
     cambio_fecha: 'bg-green-950 text-green-300 border-green-800',

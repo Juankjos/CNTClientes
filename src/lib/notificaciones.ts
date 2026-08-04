@@ -4,6 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export type NotificationType =
   | 'nueva_peticion'
+  | 'peticion_actualizada'
   | 'comentario_admin'
   | 'cambio_estatus'
   | 'cambio_fecha'
