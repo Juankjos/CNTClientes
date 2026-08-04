@@ -4,7 +4,7 @@ import { pool } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import path from 'node:path';
-import { stat } from 'node:fs/promises';
+import { stat, unlink } from 'node:fs/promises';
 import { logAction } from '@/lib/logger';
 import { createNotification, notifyAdmins } from '@/lib/notificaciones';
 
@@ -335,6 +335,53 @@ async function normalizeArchivosSubidos(value: unknown, clienteId: number) {
   }
 
   return safeFiles;
+}
+
+async function deleteRemovedPeticionFiles({
+  currentFiles,
+  nextFiles,
+  clienteId,
+}: {
+  currentFiles: unknown[];
+  nextFiles: unknown[];
+  clienteId: number;
+}) {
+  const uploadRoot = process.env.UPLOAD_DIR;
+
+  if (!uploadRoot) return;
+
+  const mediaRoot = path.join(uploadRoot, 'media');
+  const safeRoot = `${path.join(mediaRoot, 'peticiones', String(clienteId))}${path.sep}`;
+  const expectedPrefix = `peticiones/${clienteId}/`;
+
+  const nextKeys = new Set(
+    nextFiles
+      .filter(isUploadedFile)
+      .map((file) => `${file.id}|${file.relativePath}`)
+  );
+
+  const removedFiles = currentFiles
+    .filter(isUploadedFile)
+    .filter((file) => !nextKeys.has(`${file.id}|${file.relativePath}`));
+
+  for (const file of removedFiles) {
+    try {
+      if (!file.relativePath.startsWith(expectedPrefix)) continue;
+
+      const fullPath = path.join(mediaRoot, file.relativePath);
+
+      if (!fullPath.startsWith(safeRoot)) continue;
+
+      await unlink(fullPath);
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        console.error(
+          '[PATCH /api/peticiones/[id]] No se pudo eliminar archivo removido:',
+          error
+        );
+      }
+    }
+  }
 }
 
 function parseArchivosSubidos(value: unknown) {
@@ -914,6 +961,12 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         { status: 409 }
       );
     }
+
+    await deleteRemovedPeticionFiles({
+      currentFiles: currentArchivos,
+      nextFiles: nextArchivos,
+      clienteId: Number(current.cliente_id),
+    });
 
     for (const change of changes) {
       await pool.execute(

@@ -73,6 +73,37 @@ type FormularioDetalle = {
   domicilio_3?: string | null;
 };
 
+const MB = 1024 * 1024;
+const GB = 1024 * MB;
+
+const MAX_BY_KIND = {
+  image: 25 * MB,
+  document: 100 * MB,
+  video: 1 * GB,
+  compressed: 500 * MB,
+} as const;
+
+const MAX_TOTAL_FILES = 2 * GB;
+
+const ACCEPTED_FILES = [
+  'image/*',
+  'video/*',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.txt',
+  '.csv',
+  '.zip',
+  '.rar',
+  '.7z',
+  '.tar',
+  '.gz',
+].join(',');
+
 function formatFechaAmPm(value?: string | null) {
   if (!value) return '—';
 
@@ -97,6 +128,8 @@ function isUploadedPeticionFile(value: any): value is UploadedPeticionFile {
     typeof value.storedName === 'string' &&
     typeof value.mimeType === 'string' &&
     typeof value.size === 'number' &&
+    ['image', 'document', 'video', 'compressed'].includes(value.kind) &&
+    typeof value.relativePath === 'string' &&
     typeof value.url === 'string'
   );
 }
@@ -151,6 +184,40 @@ function archivoUrl(archivo: UploadedPeticionFile) {
 
 function archivoDownloadUrl(archivo: UploadedPeticionFile) {
   return `${apiPath(archivo.url)}?download=1`;
+}
+
+function getFileKind(file: File): UploadedPeticionFile['kind'] | null {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+
+  if (type.startsWith('image/')) return 'image';
+  if (type.startsWith('video/')) return 'video';
+
+  if (
+    name.endsWith('.zip') ||
+    name.endsWith('.rar') ||
+    name.endsWith('.7z') ||
+    name.endsWith('.tar') ||
+    name.endsWith('.gz')
+  ) {
+    return 'compressed';
+  }
+
+  if (
+    name.endsWith('.pdf') ||
+    name.endsWith('.doc') ||
+    name.endsWith('.docx') ||
+    name.endsWith('.xls') ||
+    name.endsWith('.xlsx') ||
+    name.endsWith('.ppt') ||
+    name.endsWith('.pptx') ||
+    name.endsWith('.txt') ||
+    name.endsWith('.csv')
+  ) {
+    return 'document';
+  }
+
+  return null;
 }
 
 function toBooleanDb(value: unknown) {
@@ -398,6 +465,9 @@ export default function VerFormularioPage() {
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  const [editArchivos, setEditArchivos] = useState<UploadedPeticionFile[]>([]);
+  const [uploadingEditFiles, setUploadingEditFiles] = useState(false);
+
   const [editForm, setEditForm] = useState({
     motivo: '',
     descripcion: '',
@@ -420,6 +490,11 @@ export default function VerFormularioPage() {
         }
 
         setItem(data);
+        setEditArchivos(
+          Array.isArray(data.archivos_subidos)
+            ? data.archivos_subidos.filter(isUploadedPeticionFile)
+            : []
+        );
         setEditForm({
           motivo: String(data.motivo ?? ''),
           descripcion: String(data.descripcion ?? ''),
@@ -696,6 +771,7 @@ export default function VerFormularioPage() {
       fecha_deseada: String(currentItem.fecha_deseada ?? '').slice(0, 10),
       hora_cita: currentItem.hora_cita ? String(currentItem.hora_cita).slice(0, 5) : '',
     });
+    setEditArchivos(getArchivosPeticion(currentItem));
   }
 
   function cancelEdit() {
@@ -704,6 +780,140 @@ export default function VerFormularioPage() {
     }
 
     setEditing(false);
+  }
+
+  const editArchivosTotalSize = useMemo(() => {
+    return editArchivos.reduce((total, archivo) => total + Number(archivo.size ?? 0), 0);
+  }, [editArchivos]);
+
+  function validateEditFiles(files: File[]) {
+    const errors: string[] = [];
+
+    const currentSize = editArchivos.reduce(
+      (sum, archivo) => sum + Number(archivo.size ?? 0),
+      0
+    );
+
+    const newSize = files.reduce((sum, file) => sum + file.size, 0);
+
+    if (currentSize + newSize > MAX_TOTAL_FILES) {
+      errors.push('El total de archivos excede el máximo permitido de 2 GB.');
+    }
+
+    for (const file of files) {
+      const kind = getFileKind(file);
+
+      if (!kind) {
+        errors.push(`"${file.name}" no tiene un tipo permitido.`);
+        continue;
+      }
+
+      const maxSize = MAX_BY_KIND[kind];
+
+      if (file.size > maxSize) {
+        errors.push(
+          `"${file.name}" excede el máximo permitido para ${kind}: ${formatBytes(maxSize)}.`
+        );
+      }
+    }
+
+    return errors;
+  }
+
+  async function handleEditFilesSelected(filesList: FileList | null) {
+    const files = Array.from(filesList ?? []);
+
+    if (!files.length) return;
+
+    const errors = validateEditFiles(files);
+
+    if (errors.length) {
+      await Swal.fire('Archivos inválidos', errors.join('\n'), 'warning');
+      return;
+    }
+
+    const formData = new FormData();
+
+    for (const file of files) {
+      formData.append('files', file);
+    }
+
+    try {
+      setUploadingEditFiles(true);
+
+      const res = await fetch(apiPath('/api/peticiones/upload'), {
+        method: 'POST',
+        body: formData,
+      });
+
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+
+      if (contentType?.includes('application/json')) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        data.rawText = await res.text().catch(() => '');
+      }
+
+      const errorMessage =
+        data.error ||
+        data.message ||
+        (data.rawText && data.rawText.length > 5
+          ? data.rawText.substring(0, 200)
+          : null) ||
+        'No se pudieron subir los archivos.';
+
+      if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('El archivo o la cantidad de datos excede el límite permitido.');
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      if (!Array.isArray(data.files)) {
+        throw new Error('Respuesta del servidor inesperada al subir archivos.');
+      }
+
+      const uploadedFiles = data.files.filter(isUploadedPeticionFile);
+
+      if (uploadedFiles.length !== data.files.length) {
+        throw new Error('Uno de los archivos subidos tiene formato inválido.');
+      }
+
+      setEditArchivos((prev) => [...prev, ...uploadedFiles]);
+    } catch (error) {
+      await Swal.fire(
+        'Error al subir archivos',
+        error instanceof Error ? error.message : 'Error inesperado.',
+        'error'
+      );
+    } finally {
+      setUploadingEditFiles(false);
+    }
+  }
+
+  async function removeEditArchivo(archivoId: string) {
+    const archivo = editArchivos.find((item) => item.id === archivoId);
+
+    const confirm = await Swal.fire({
+      title: '¿Quitar archivo?',
+      text: archivo
+        ? `Se quitará "${archivo.originalName}" de esta petición.`
+        : 'Se quitará este archivo de la petición.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#374151',
+      background: '#111827',
+      color: '#ffffff',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    setEditArchivos((prev) => prev.filter((item) => item.id !== archivoId));
   }
 
   async function saveClienteEdit() {
@@ -785,6 +995,15 @@ export default function VerFormularioPage() {
       return;
     }
 
+    if (uploadingEditFiles) {
+      await Swal.fire(
+        'Archivos en proceso',
+        'Espera a que terminen de subirse los archivos.',
+        'warning'
+      );
+      return;
+    }
+
     const confirm = await Swal.fire({
       title: '¿Guardar cambios?',
       text: 'El administrador será notificado de la actualización.',
@@ -818,7 +1037,7 @@ export default function VerFormularioPage() {
             ? `${toSqlTimeFromDate(editFechaDeseadaDate)}:00`
             : null,
 
-          archivos_subidos: getArchivosPeticion(item),
+          archivos_subidos: editArchivos,
         }),
       });
 
@@ -850,6 +1069,7 @@ export default function VerFormularioPage() {
 
       if (reload.ok && reloadData) {
         setItem(reloadData);
+        resetEditFormFromItem(reloadData);
       }
     } finally {
       setSavingEdit(false);
@@ -1300,6 +1520,141 @@ export default function VerFormularioPage() {
               )}
             </div>
 
+            <div className="rounded-xl border border-cnt-border bg-cnt-dark p-4">
+              <label className="block text-xs text-gray-400 uppercase tracking-widest mb-2">
+                Archivos adjuntos
+              </label>
+
+              <p className="text-xs text-gray-500 mb-3">
+                Puedes agregar nuevos archivos o quitar archivos actuales antes de guardar los cambios.
+              </p>
+
+              <input
+                type="file"
+                multiple
+                accept={ACCEPTED_FILES}
+                disabled={uploadingEditFiles || savingEdit}
+                onChange={(e) => {
+                  handleEditFilesSelected(e.target.files);
+                  e.currentTarget.value = '';
+                }}
+                className="w-full rounded-lg border border-cnt-border bg-cnt-surface px-3 py-2 text-sm text-gray-400 file:mr-4 file:cursor-pointer file:border-0 file:bg-cnt-red file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-red-700 disabled:opacity-60"
+              />
+
+              {uploadingEditFiles && (
+                <p className="mt-3 text-xs text-blue-300">
+                  Subiendo archivos...
+                </p>
+              )}
+
+              <div className="mt-4 rounded-lg border border-cnt-border bg-black/20 px-4 py-3">
+                <p className="text-xs uppercase tracking-widest text-gray-500">
+                  Archivos actuales
+                </p>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  {editArchivos.length} archivo{editArchivos.length === 1 ? '' : 's'} ·{' '}
+                  {formatBytes(editArchivosTotalSize)}
+                </p>
+              </div>
+
+              {editArchivos.length === 0 ? (
+                <p className="mt-4 text-sm text-gray-500">
+                  No hay archivos adjuntos.
+                </p>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 gap-3">
+                  {editArchivos.map((archivo) => (
+                    <div
+                      key={archivo.id}
+                      className="overflow-hidden rounded-xl border border-cnt-border bg-cnt-surface"
+                    >
+                      <div className="flex items-start gap-3 p-4">
+                        <div className="shrink-0 text-3xl">
+                          {iconForArchivo(archivo.kind)}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-white">
+                            {archivo.originalName}
+                          </p>
+
+                          <p className="mt-1 text-xs text-gray-500">
+                            {archivo.kind} · {formatBytes(Number(archivo.size))}
+                          </p>
+
+                          <p className="mt-1 truncate text-[10px] text-gray-600">
+                            {archivo.mimeType}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={savingEdit || uploadingEditFiles}
+                          onClick={() => removeEditArchivo(archivo.id)}
+                          className="cursor-pointer rounded-lg border border-red-900/70 bg-red-950/30 px-3 py-1.5 text-xs text-red-300 hover:text-white disabled:opacity-60"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+
+                      {canPreviewInline(archivo) && (
+                        <div className="border-t border-cnt-border bg-black/30">
+                          {archivo.mimeType.startsWith('image/') ? (
+                            <a
+                              href={archivoUrl(archivo)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Abrir imagen"
+                            >
+                              <img
+                                src={archivoUrl(archivo)}
+                                alt={archivo.originalName}
+                                className="h-56 w-full object-contain bg-black/40"
+                              />
+                            </a>
+                          ) : archivo.mimeType.startsWith('video/') ? (
+                            <video
+                              controls
+                              preload="metadata"
+                              className="h-56 w-full bg-black"
+                            >
+                              <source src={archivoUrl(archivo)} type={archivo.mimeType} />
+                              Tu navegador no puede reproducir este video.
+                            </video>
+                          ) : (
+                            <iframe
+                              src={archivoUrl(archivo)}
+                              title={archivo.originalName}
+                              className="h-56 w-full bg-white"
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 border-t border-cnt-border p-3">
+                        <a
+                          href={archivoUrl(archivo)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg border border-cnt-border px-3 py-1.5 text-xs text-gray-300 hover:border-cnt-red hover:text-white"
+                        >
+                          Ver
+                        </a>
+
+                        <a
+                          href={archivoDownloadUrl(archivo)}
+                          className="rounded-lg border border-cnt-border px-3 py-1.5 text-xs text-gray-300 hover:border-cnt-red hover:text-white"
+                        >
+                          Descargar
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -1312,11 +1667,15 @@ export default function VerFormularioPage() {
 
               <button
                 type="button"
-                disabled={savingEdit}
+                disabled={savingEdit || uploadingEditFiles}
                 onClick={saveClienteEdit}
                 className="cursor-pointer rounded-lg border border-green-800 bg-green-950/40 px-4 py-2 text-sm text-green-300 hover:text-white disabled:opacity-60"
               >
-                {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+                {uploadingEditFiles
+                  ? 'Subiendo archivos...'
+                  : savingEdit
+                    ? 'Guardando...'
+                    : 'Guardar cambios'}
               </button>
             </div>
           </div>
